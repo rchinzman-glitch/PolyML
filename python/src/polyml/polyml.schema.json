@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://rchinzman-glitch.github.io/polyml/spec/polyml.schema.json",
+  "$id": "https://rchinzman-glitch.github.io/PolyML/spec/polyml.schema.json",
   "title": "polyML document",
   "description": "A polyML v0.2 document: people, groups and the relationships between them. v0.1 documents are also valid.",
   "type": "object",

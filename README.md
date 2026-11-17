@@ -1,5 +1,7 @@
 # polyML
 
+**Try it:** [3D viewer](https://rchinzman-glitch.github.io/PolyML/) · [Builder](https://rchinzman-glitch.github.io/PolyML/builder.html)
+
 polyML is an open format for describing relationship networks: the people in them, the groups they form (houses, pods, polycules, families), and the relationships between them. It also covers how those relationships change over time.
 
 - **Spec:** [`spec/polyml-spec.md`](spec/polyml-spec.md), v0.2 draft (reads v0.1 files too), with a JSON Schema at [`spec/polyml.schema.json`](spec/polyml.schema.json)
