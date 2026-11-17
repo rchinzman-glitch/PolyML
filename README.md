@@ -19,3 +19,8 @@ pytest
 ```
 
 To view your own network, open the viewer and use **Open file…** or drag a `.polyml.json` file onto the graph.
+
+## License
+
+- **Spec, schema and examples** (`spec/`): [CC BY-SA 4.0](spec/LICENSE). You can share and adapt the spec if you credit polyML and release your changes under the same license.
+- **Code** (viewer, Python library, CI): [GPL-3.0-or-later](LICENSE).
