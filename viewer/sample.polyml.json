@@ -1,0 +1,198 @@
+{
+  "polyml": "0.1",
+  "meta": {
+    "title": "Sample network (fictional)",
+    "updated": "2026-11-17",
+    "default_visibility": "public"
+  },
+  "vocab": {
+    "relationship_types": [
+      {
+        "id": "comet",
+        "label": "Comet",
+        "description": "Long gaps between contact, picks up where it left off.",
+        "color": "#c084fc"
+      }
+    ]
+  },
+  "people": [
+    {
+      "id": "ash",
+      "name": "Ash",
+      "pronouns": "they/them",
+      "tags": [
+        "organizer"
+      ]
+    },
+    {
+      "id": "bea",
+      "name": "Bea",
+      "pronouns": "she/her"
+    },
+    {
+      "id": "cal",
+      "name": "Cal",
+      "pronouns": "he/him"
+    },
+    {
+      "id": "dee",
+      "name": "Dee",
+      "pronouns": "she/they"
+    },
+    {
+      "id": "eli",
+      "name": "Eli",
+      "pronouns": "he/they",
+      "visibility": "redacted"
+    },
+    {
+      "id": "fox",
+      "name": "Fox",
+      "pronouns": "they/them",
+      "status": "unknown",
+      "visibility": "private"
+    }
+  ],
+  "groups": [
+    {
+      "id": "lantern",
+      "name": "Lantern polycule",
+      "type": "polycule",
+      "members": [
+        "ash",
+        "bea",
+        "cal",
+        "dee",
+        "eli"
+      ]
+    },
+    {
+      "id": "maple-house",
+      "name": "Maple St house",
+      "type": "house",
+      "parent": "lantern",
+      "members": [
+        "ash",
+        "bea",
+        "cal"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "ash-bea",
+      "parties": [
+        {
+          "person": "ash"
+        },
+        {
+          "person": "bea"
+        }
+      ],
+      "types": [
+        "romantic",
+        "sexual"
+      ],
+      "nesting": true,
+      "since": "2019-06",
+      "history": [
+        {
+          "status": "active",
+          "from": "2019-06",
+          "to": "2021-02"
+        },
+        {
+          "status": "paused",
+          "from": "2021-02",
+          "to": "2021-09",
+          "note": "long-distance year"
+        },
+        {
+          "status": "active",
+          "from": "2021-09"
+        }
+      ]
+    },
+    {
+      "id": "ash-cal",
+      "parties": [
+        {
+          "person": "ash",
+          "title": "big sib"
+        },
+        {
+          "person": "cal",
+          "title": "lil bro"
+        }
+      ],
+      "types": [
+        "platonic",
+        "chosen-family"
+      ],
+      "nesting": true,
+      "since": "2020"
+    },
+    {
+      "id": "bea-dee",
+      "parties": [
+        {
+          "person": "bea",
+          "role": "dominant"
+        },
+        {
+          "person": "dee",
+          "role": "submissive"
+        }
+      ],
+      "types": [
+        "romantic"
+      ],
+      "dynamics": [
+        "d-s"
+      ],
+      "since": "2022-03-14"
+    },
+    {
+      "id": "dee-eli",
+      "parties": [
+        {
+          "person": "dee"
+        },
+        {
+          "person": "eli"
+        }
+      ],
+      "types": [
+        "comet"
+      ],
+      "visibility": "redacted"
+    },
+    {
+      "id": "cal-fox",
+      "parties": [
+        {
+          "person": "cal"
+        },
+        {
+          "person": "fox"
+        }
+      ],
+      "types": [
+        "sexual"
+      ],
+      "status": "ended",
+      "history": [
+        {
+          "status": "active",
+          "from": "2018",
+          "to": "2020-01"
+        },
+        {
+          "status": "ended",
+          "from": "2020-01"
+        }
+      ],
+      "visibility": "private"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Schema copy matches spec
+        run: diff spec/polyml.schema.json python/src/polyml/polyml.schema.json
+      - name: Viewer sample matches spec sample
+        run: diff spec/examples/sample.polyml.json viewer/sample.polyml.json
+      - run: pip install -e "python[dev]"
+      - run: polyml validate spec/examples/*.polyml.json
+      - run: pytest python

@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>polyML viewer</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #181b22; --text: #e6e8ee; --muted: #9aa1b2; --line: #2a2f3a; --accent: #8ab4ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  #app { display: flex; height: 100%; }
+  #side { width: 300px; flex: none; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 14px 16px; }
+  #graph { flex: 1; position: relative; min-width: 0; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+  label.chk { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+  .sw { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  button, .file { background: #232836; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
+  button:hover, .file:hover { border-color: var(--accent); }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  input[type=search] { width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: #10131a; color: var(--text); font: inherit; }
+  input[type=range] { width: 100%; }
+  #info { position: absolute; right: 12px; top: 12px; max-width: 280px; background: rgba(24,27,34,.95); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: none; }
+  #info h3 { margin: 0 0 4px; font-size: 15px; }
+  #info ul { margin: 6px 0 0; padding-left: 18px; }
+  #drop { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(15,17,21,.85); font-size: 20px; border: 2px dashed var(--accent); }
+  #err { color: #ff8a8a; font-size: 12px; white-space: pre-wrap; }
+  .note { color: var(--muted); font-size: 12px; }
+  @media (max-width: 700px) {
+    #app { flex-direction: column; }
+    #side { width: 100%; max-height: 45%; border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <h1>polyML viewer</h1>
+    <p class="sub" id="doctitle">No file loaded</p>
+    <div class="row">
+      <label class="file">Open file…<input id="fileIn" type="file" accept=".json,application/json" hidden></label>
+      <button id="sampleBtn">Sample</button>
+      <button id="fitBtn">Fit</button>
+    </div>
+    <p class="note">Files are read in your browser only. Nothing is uploaded. You can also drop a file on the graph.</p>
+    <div id="err"></div>
+
+    <h2>Search</h2>
+    <input id="search" type="search" placeholder="Name, id or tag">
+
+    <h2>Date</h2>
+    <label class="chk"><input type="checkbox" id="useDate"> Show network as of</label>
+    <input id="dateRange" type="range" min="0" max="0" value="0" disabled>
+    <div class="note" id="dateLabel">Today (current status)</div>
+
+    <h2>Status</h2><div id="f-status"></div>
+    <h2>Relationship types</h2><div id="f-types"></div>
+    <h2>Dynamics</h2><div id="f-dyn"></div>
+    <h2>Groups</h2><div id="f-groups"></div>
+
+    <h2>Display</h2>
+    <label class="chk"><input type="checkbox" id="showMeta"> Show metamours (thin grey lines)</label>
+    <label class="chk"><input type="checkbox" id="hideIsolated"> Hide people with no visible links</label>
+    <label class="chk"><input type="checkbox" id="publicOnly"> Preview public export</label>
+  </aside>
+  <main id="graph"><div id="info"></div><div id="drop">Drop a .polyml.json file</div></main>
+</div>
+
+<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script>
+(() => {
+  const CORE_TYPES = ['romantic','sexual','platonic','queerplatonic','chosen-family','co-parent','play-partner','friend','undefined'];
+  const CORE_DYN = ['d-s','caregiver','pet-play','age-play','switch','fluctuating'];
+  const PALETTE = ['#f472b6','#fb923c','#60a5fa','#a78bfa','#34d399','#facc15','#f87171','#22d3ee','#a3a3a3','#c084fc','#4ade80','#e879f9'];
+  const STATUSES = ['active','paused','ended','unknown'];
+  const STATUS_COLOR = { active: null, paused: '#9aa1b2', ended: '#5b6170', unknown: '#7c8496' };
+
+  let doc = null, colorOf = {}, groupColor = {}, dates = [];
+  const filters = { status: new Set(['active','paused','unknown']), types: new Set(), dyn: null, groups: null };
+  const $ = id => document.getElementById(id);
+
+  const Graph = ForceGraph3D()($('graph'))
+    .backgroundColor('#0f1115')
+    .nodeLabel(n => `${esc(n.label)}${n.pronouns ? ' (' + esc(n.pronouns) + ')' : ''}`)
+    .nodeColor(n => n.color)
+    .nodeVal(n => 2 + n.deg * 1.5)
+    .nodeOpacity(0.95)
+    .linkColor(l => l.color)
+    .linkWidth(l => l.meta ? 0 : (l.nesting ? 2.2 : 1.2))
+    .linkOpacity(0.7)
+    .linkLabel(l => l.label)
+    .linkDirectionalParticles(l => l.dyn ? 2 : 0)
+    .linkDirectionalParticleWidth(1.5)
+    .onNodeClick(focusNode)
+    .onLinkClick(showLink)
+    .onBackgroundClick(() => { $('info').style.display = 'none'; });
+
+  new ResizeObserver(() => Graph.width($('graph').clientWidth).height($('graph').clientHeight)).observe($('graph'));
+
+  function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  const vis = (o) => o.visibility || doc.meta?.default_visibility || 'private';
+  const dateKey = d => (d + '-01-01').slice(0, 10);
+
+  function load(json) {
+    $('err').textContent = '';
+    try {
+      if (json.polyml !== '0.1') throw new Error(`Unsupported polyml version: ${json.polyml}`);
+      if (!Array.isArray(json.people) || !Array.isArray(json.relationships)) throw new Error('Missing people or relationships');
+      const ids = new Set(json.people.map(p => p.id));
+      for (const r of json.relationships) {
+        for (const p of r.parties || []) if (!ids.has(p.person)) throw new Error(`Relationship ${r.id} references unknown person ${p.person}`);
+      }
+    } catch (e) { $('err').textContent = e.message; return; }
+    doc = json;
+    json.groups = json.groups || [];
+    $('doctitle').textContent = json.meta?.title || 'Untitled network';
+
+    const vocabTypes = (json.vocab?.relationship_types || []);
+    const usedTypes = [...new Set([...CORE_TYPES.filter(t => json.relationships.some(r => r.types.includes(t))), ...vocabTypes.map(v => v.id),
+      ...json.relationships.flatMap(r => r.types)])];
+    colorOf = {};
+    usedTypes.forEach((t, i) => colorOf[t] = vocabTypes.find(v => v.id === t)?.color || PALETTE[i % PALETTE.length]);
+    groupColor = {};
+    json.groups.forEach((g, i) => groupColor[g.id] = PALETTE[(i + 3) % PALETTE.length]);
+
+    const dyns = [...new Set(json.relationships.flatMap(r => r.dynamics || []))];
+    filters.types = new Set(usedTypes);
+    filters.dyn = new Set([...dyns, '(none)']);
+    filters.groups = new Set([...json.groups.map(g => g.id), '(none)']);
+
+    buildChecks('f-status', STATUSES, filters.status, s => STATUS_COLOR[s] || '#e6e8ee');
+    buildChecks('f-types', usedTypes, filters.types, t => colorOf[t]);
+    buildChecks('f-dyn', [...dyns, '(none)'], filters.dyn, () => '#e6e8ee');
+    buildChecks('f-groups', [...json.groups.map(g => g.id), '(none)'], filters.groups, g => groupColor[g] || '#e6e8ee',
+      g => json.groups.find(x => x.id === g)?.name || 'Not in a group');
+
+    const ds = new Set();
+    for (const r of json.relationships) {
+      if (r.since) ds.add(dateKey(r.since));
+      for (const h of r.history || []) { if (h.from) ds.add(dateKey(h.from)); if (h.to) ds.add(dateKey(h.to)); }
+    }
+    dates = [...ds].sort();
+    $('dateRange').max = Math.max(0, dates.length - 1);
+    $('dateRange').value = $('dateRange').max;
+    $('useDate').disabled = dates.length === 0;
+    refresh();
+    setTimeout(() => Graph.zoomToFit(600, 40), 800);
+  }
+
+  function buildChecks(el, items, set, colorFn, labelFn = x => x) {
+    const host = $(el); host.innerHTML = '';
+    if (!items.length) { host.innerHTML = '<div class="note">None in this file</div>'; return; }
+    for (const it of items) {
+      const lab = document.createElement('label'); lab.className = 'chk';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = set.has(it);
+      cb.onchange = () => { cb.checked ? set.add(it) : set.delete(it); refresh(); };
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = colorFn(it);
+      lab.append(cb, sw, document.createTextNode(labelFn(it)));
+      host.append(lab);
+    }
+  }
+
+  // Status of a relationship at a date (YYYY-MM-DD), or its current status.
+  function statusAt(r, d) {
+    if (!d) return r.status || 'active';
+    if (r.history?.length) {
+      for (const h of r.history) {
+        const f = h.from ? dateKey(h.from) : '0000', t = h.to ? dateKey(h.to) : '9999';
+        if (f <= d && d < t) return h.status;
+      }
+      return dateKey(r.history[0].from || '0000') > d ? null : (r.status || 'active');
+    }
+    if (r.since && dateKey(r.since) > d) return null;
+    return r.status || 'active';
+  }
+
+  function refresh() {
+    if (!doc) return;
+    const d = $('useDate').checked ? dates[+$('dateRange').value] : null;
+    $('dateLabel').textContent = d ? d : 'Today (current status)';
+    $('dateRange').disabled = !$('useDate').checked;
+    const pub = $('publicOnly').checked;
+    const q = $('search').value.trim().toLowerCase();
+
+    // Colour each person by their most specific (deepest nested) group.
+    const depth = id => { let d = 0, g = doc.groups.find(x => x.id === id); while (g?.parent && d < 20) { d++; g = doc.groups.find(x => x.id === g.parent); } return d; };
+    const firstGroup = {};
+    for (const g of doc.groups) for (const m of g.members || []) if (!firstGroup[m] || depth(g.id) > depth(firstGroup[m])) firstGroup[m] = g.id;
+    const peopleGroups = {};
+    for (const g of doc.groups) for (const m of g.members || []) (peopleGroups[m] ||= []).push(g.id);
+
+    const nodes = new Map();
+    for (const p of doc.people) {
+      const v = vis(p);
+      if (pub && v === 'private') continue;
+      const gs = peopleGroups[p.id] || ['(none)'];
+      if (!gs.some(g => filters.groups.has(g))) continue;
+      const redacted = v === 'redacted';
+      const label = redacted ? `Person ${p.id.slice(0, 2).toUpperCase()}…` : p.name;
+      const match = !q || [p.id, p.name, ...(p.tags || [])].some(s => String(s).toLowerCase().includes(q));
+      nodes.set(p.id, {
+        id: p.id, label, pronouns: redacted ? '' : p.pronouns, person: p, deg: 0, groups: gs,
+        color: !match ? '#3a3f4b' : (groupColor[firstGroup[p.id]] || '#cbd5e1')
+      });
+    }
+
+    const links = [];
+    for (const r of doc.relationships) {
+      const v = vis(r);
+      const [a, b] = r.parties.map(x => x.person);
+      if (!nodes.has(a) || !nodes.has(b)) continue;
+      const pv = [v, vis(doc.people.find(p => p.id === a)), vis(doc.people.find(p => p.id === b))];
+      if (pub && pv.includes('private')) continue;
+      const st = statusAt(r, d);
+      if (!st || !filters.status.has(st)) continue;
+      if (!r.types.some(t => filters.types.has(t))) continue;
+      const dy = r.dynamics?.length ? r.dynamics : ['(none)'];
+      if (!dy.some(x => filters.dyn.has(x))) continue;
+      const redacted = pv.includes('redacted');
+      const titles = redacted ? '' : r.parties.filter(x => x.title || x.role).map(x => `${esc(nodes.get(x.person).label)}: ${esc([x.title, x.role].filter(Boolean).join(', '))}`).join('<br>');
+      links.push({
+        source: a, target: b, rel: r, status: st, nesting: !!r.nesting, dyn: !!r.dynamics?.length,
+        color: STATUS_COLOR[st] || colorOf[r.types.find(t => filters.types.has(t))],
+        label: `<b>${esc(r.types.join(', '))}</b>${r.dynamics?.length ? '<br>' + esc(r.dynamics.join(', ')) : ''}<br>${esc(st)}${r.nesting ? ', nesting' : ''}${titles ? '<br>' + titles : ''}`
+      });
+    }
+    for (const l of links) { nodes.get(l.source).deg++; nodes.get(l.target).deg++; }
+
+    if ($('showMeta').checked) {
+      const partners = {};
+      for (const l of links) { (partners[l.source] ||= new Set()).add(l.target); (partners[l.target] ||= new Set()).add(l.source); }
+      const linked = new Set(links.map(l => [l.source, l.target].sort().join('|')));
+      const seen = new Set();
+      for (const [hinge, ps] of Object.entries(partners)) {
+        const arr = [...ps];
+        for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+          const k = [arr[i], arr[j]].sort().join('|');
+          if (linked.has(k) || seen.has(k)) continue;
+          seen.add(k);
+          links.push({ source: arr[i], target: arr[j], meta: true, color: '#6b7280', label: `metamours via ${esc(nodes.get(hinge).label)}` });
+        }
+      }
+    }
+
+    let nodeList = [...nodes.values()];
+    if ($('hideIsolated').checked) nodeList = nodeList.filter(n => links.some(l => !l.meta && (l.source === n.id || l.target === n.id)));
+    const keep = new Set(nodeList.map(n => n.id));
+    Graph.graphData({ nodes: nodeList, links: links.filter(l => keep.has(l.source) && keep.has(l.target)) });
+    Graph.linkWidth(l => l.meta ? 0.3 : (l.nesting ? 2.2 : 1.2));
+  }
+
+  function focusNode(n) {
+    const dist = 90, r = 1 + dist / Math.hypot(n.x, n.y, n.z || 1);
+    Graph.cameraPosition({ x: n.x * r, y: n.y * r, z: n.z * r }, n, 800);
+    const p = n.person, redacted = vis(p) === 'redacted';
+    const rels = Graph.graphData().links.filter(l => !l.meta && (l.source.id === n.id || l.target.id === n.id));
+    const groups = doc.groups.filter(g => (g.members || []).includes(p.id)).map(g => esc(g.name));
+    $('info').innerHTML = `<h3>${esc(n.label)}</h3>
+      ${!redacted && p.pronouns ? `<div class="note">${esc(p.pronouns)}</div>` : ''}
+      ${groups.length ? `<div>Groups: ${groups.join(', ')}</div>` : ''}
+      ${!redacted && p.tags?.length ? `<div class="note">Tags: ${esc(p.tags.join(', '))}</div>` : ''}
+      <ul>${rels.map(l => { const o = l.source.id === n.id ? l.target : l.source; return `<li>${esc(o.label)}: ${esc(l.rel.types.join(', '))} (${esc(l.status)})</li>`; }).join('') || '<li>No visible relationships</li>'}</ul>`;
+    $('info').style.display = 'block';
+  }
+
+  function showLink(l) {
+    if (l.meta) return;
+    $('info').innerHTML = `<h3>${esc(l.source.label)} &amp; ${esc(l.target.label)}</h3><div>${l.label}</div>${l.rel.since ? `<div class="note">Since ${esc(l.rel.since)}</div>` : ''}`;
+    $('info').style.display = 'block';
+  }
+
+  function readFile(f) {
+    const fr = new FileReader();
+    fr.onload = () => { try { load(JSON.parse(fr.result)); } catch (e) { $('err').textContent = 'Could not parse JSON: ' + e.message; } };
+    fr.readAsText(f);
+  }
+
+  $('fileIn').onchange = e => e.target.files[0] && readFile(e.target.files[0]);
+  $('sampleBtn').onclick = () => fetch('sample.polyml.json').then(r => r.json()).then(load).catch(e => $('err').textContent = 'Could not load sample: ' + e.message);
+  $('fitBtn').onclick = () => Graph.zoomToFit(600, 40);
+  for (const id of ['useDate', 'showMeta', 'hideIsolated', 'publicOnly']) $(id).onchange = refresh;
+  $('dateRange').oninput = refresh;
+  $('search').oninput = refresh;
+  const g = $('graph');
+  g.addEventListener('dragover', e => { e.preventDefault(); $('drop').style.display = 'flex'; });
+  g.addEventListener('dragleave', e => { if (e.target === $('drop')) $('drop').style.display = 'none'; });
+  g.addEventListener('drop', e => { e.preventDefault(); $('drop').style.display = 'none'; e.dataTransfer.files[0] && readFile(e.dataTransfer.files[0]); });
+
+  $('sampleBtn').click();
+})();
+</script>
+</body>
+</html>

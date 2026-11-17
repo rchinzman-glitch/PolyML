@@ -1,0 +1,11 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+dist/
+build/
+# Real network files stay local; only the fictional samples are committed.
+*.polyml.json
+*.polyml.yaml
+!spec/examples/*.polyml.json
+!viewer/sample.polyml.json
