@@ -146,9 +146,9 @@ Tools compute these; files must not store them:
 ## 10. Versioning
 
 - The `polyml` field names the spec version a file follows. Tools state which versions they read; the reference tools read `0.1` and `0.2`.
-- Minor versions (`0.x`) only add optional fields and core terms, or deprecate fields without removing them, so every valid `0.1` file is a valid `0.2` file.
-- A deprecated field (such as `nesting`) keeps working until the next major version, which may remove it.
-- The schema's `$id` is <https://rchinzman-glitch.github.io/polyml/spec/polyml.schema.json>.
+- Before 1.0, any minor version (`0.x`) may change or remove fields when that makes the spec better. Keeping older files valid is a goal, not a guarantee. Each release lists its breaking changes.
+- A deprecated field (such as `nesting`) keeps working for at least one minor version after it is deprecated, where that is practical.
+- The schema's `$id` is <https://rchinzman-glitch.github.io/PolyML/spec/polyml.schema.json>.
 
 ## 11. Open questions for v0.3
 
