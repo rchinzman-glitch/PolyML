@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>polyML builder</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #181b22; --card: #1e222b; --text: #e6e8ee; --muted: #9aa1b2; --line: #2a2f3a;
+    --accent: #8ab4ff; --bad: #ff8a8a; --good: #6ee7b7; --input: #10131a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  header h1 { font-size: 17px; margin: 0 8px 0 0; }
+  header a { color: var(--accent); }
+  .spacer { flex: 1; }
+  @media (max-width: 700px) { header { position: static; } }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+  main > section, aside { min-width: 0; }
+  nav.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+  nav.tabs button { border-radius: 6px 6px 0 0; }
+  nav.tabs button.on { border-color: var(--accent); color: var(--accent); }
+  button, .file { background: #232836; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
+  button:hover, .file:hover { border-color: var(--accent); }
+  button.primary { background: #2b3f66; border-color: #3d5a91; }
+  button.danger { color: var(--bad); }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  input, select, textarea { background: var(--input); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; width: 100%; min-width: 0; }
+  input[type=checkbox] { width: auto; }
+  input:disabled, select:disabled { opacity: .45; }
+  textarea { min-height: 54px; resize: vertical; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card.bad { border-color: #7a3b3b; }
+  .card h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .grow { flex: 1; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 12px; margin-top: 10px; }
+  .grid .wide { grid-column: 1 / -1; }
+  label.f { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips label { display: inline-flex; gap: 4px; align-items: center; background: #232836; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; font-size: 12px; color: var(--text); cursor: pointer; }
+  .chips label.on { border-color: var(--accent); background: #22314d; }
+  .chips input { display: none; }
+  .sub { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 8px; }
+  .sub h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px; align-items: end; margin-bottom: 6px; }
+  .row > button { justify-self: start; }
+  .note { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); padding: 14px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; }
+  aside { position: sticky; top: 64px; align-self: start; max-height: calc(100vh - 80px); display: flex; flex-direction: column; gap: 12px; }
+  @media (max-width: 960px) { aside { position: static; max-height: none; } }
+  #status { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); }
+  #status.ok { border-color: #2f6b55; }
+  #status.bad { border-color: #7a3b3b; }
+  #status ul { margin: 6px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; color: var(--bad); font-size: 12.5px; }
+  #json { flex: 1; min-height: 240px; overflow: auto; margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+  .pill { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; color: var(--muted); }
+  .pill.ra { color: #f0abfc; border-color: #6b3a72; }
+</style>
+</head>
+<body>
+<header>
+  <h1>polyML builder</h1>
+  <button id="newBtn">New</button>
+  <label class="file">Open file…<input id="fileIn" type="file" accept=".json,application/json" hidden></label>
+  <button id="sampleBtn">Load sample</button>
+  <span class="spacer"></span>
+  <button id="copyBtn">Copy JSON</button>
+  <button id="downloadBtn" class="primary">Download .polyml.json</button>
+  <button id="viewBtn">Open in 3D viewer</button>
+  <a href="index.html">Viewer</a>
+</header>
+
+<main>
+  <section>
+    <nav class="tabs" id="tabs"></nav>
+    <div id="panel"></div>
+  </section>
+  <aside>
+    <div id="status"></div>
+    <pre id="json"></pre>
+  </aside>
+</main>
+
+<script src="polyml.js"></script>
+<script>
+(() => {
+  const P = window.PolyML;
+  const $ = id => document.getElementById(id);
+  const DRAFT_KEY = 'polyml:builder-draft';
+  const TABS = [['doc', 'Network'], ['people', 'People'], ['rels', 'Relationships'], ['groups', 'Groups'], ['vocab', 'Vocabulary']];
+  let tab = 'people';
+  let doc = blank();
+  let problems = [];
+
+  function blank() {
+    return { polyml: '0.2', meta: { updated: today() }, people: [], groups: [], relationships: [] };
+  }
+  function today() { return new Date().toISOString().slice(0, 10); }
+  const slug = s => (s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  function uniqueId(base, list, self) {
+    base = slug(base) || 'item';
+    if (!/^[a-z0-9]/.test(base)) base = 'x' + base;
+    let id = base, n = 2;
+    while (list.some(x => x !== self && x.id === id)) id = `${base}-${n++}`;
+    return id;
+  }
+
+  // ------------------------------------------------------------ element helpers
+  function h(tag, attrs = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else if (k === 'class') el.className = v;
+      else if (k === 'value') el.value = v;
+      else if (k === 'checked' || k === 'disabled') el[k] = !!v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (const kid of kids.flat()) if (kid !== null && kid !== undefined && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
+    return el;
+  }
+  const field = (label, input, cls) => h('label', { class: 'f' + (cls ? ' ' + cls : '') }, label, input);
+
+  // Write a value onto obj[key]; empty values remove the key. `rerender` redraws the form (for shape changes).
+  function set(obj, key, value, rerender) {
+    if (value === '' || value === undefined || value === null || (Array.isArray(value) && !value.length && key !== 'types')) delete obj[key];
+    else obj[key] = value;
+    rerender ? render() : changed();
+  }
+  function text(obj, key, placeholder, opts = {}) {
+    return h('input', { value: obj[key] ?? '', placeholder, oninput: e => set(obj, key, e.target.value.trim() ? e.target.value : ''), onchange: opts.onchange });
+  }
+  function date(obj, key) {
+    return h('input', { value: obj[key] ?? '', placeholder: 'YYYY-MM-DD', title: 'YYYY, YYYY-MM or YYYY-MM-DD', pattern: '\\d{4}(-\\d{2}(-\\d{2})?)?',
+      oninput: e => set(obj, key, e.target.value.trim()) });
+  }
+  function select(obj, key, options, { blankLabel = '—', rerender = false, disabled = false, number = false } = {}) {
+    const el = h('select', { disabled, onchange: e => set(obj, key, e.target.value === '' ? '' : (number ? +e.target.value : e.target.value), rerender) },
+      h('option', { value: '' }, blankLabel),
+      options.map(o => Array.isArray(o) ? h('option', { value: o[0] }, o[1]) : h('option', { value: o }, o)));
+    el.value = obj[key] ?? '';
+    return el;
+  }
+  function tags(obj, key, placeholder = 'comma, separated') {
+    return h('input', { value: (obj[key] || []).join(', '), placeholder,
+      oninput: e => set(obj, key, [...new Set(e.target.value.split(',').map(s => s.trim()).filter(Boolean))]) });
+  }
+  function chips(obj, key, options, { keepEmpty = false } = {}) {
+    const cur = new Set(obj[key] || []);
+    const wrap = h('div', { class: 'chips' });
+    for (const o of options) {
+      const lab = h('label', { class: cur.has(o) ? 'on' : '' }, h('input', { type: 'checkbox', checked: cur.has(o), onchange: e => {
+        e.target.checked ? cur.add(o) : cur.delete(o);
+        lab.classList.toggle('on', e.target.checked);
+        const v = options.filter(x => cur.has(x));
+        if (keepEmpty) { obj[key] = v; changed(); } else set(obj, key, v);
+      } }), o);
+      wrap.append(lab);
+    }
+    if (!options.length) wrap.append(h('span', { class: 'note' }, 'None yet'));
+    return wrap;
+  }
+  const terms = k => [...P.CORE[k], ...((doc.vocab || {})[k] || []).map(t => t.id)];
+  const personOptions = () => doc.people.map(p => [p.id, p.name || p.id]);
+  const personName = id => doc.people.find(p => p.id === id)?.name || id || '?';
+  function removeBtn(list, item) {
+    return h('button', { class: 'small danger', onclick: () => { list.splice(list.indexOf(item), 1); render(); } }, 'Remove');
+  }
+
+  // ------------------------------------------------------------ shared sub-editors
+  function historyEditor(bond) {
+    const hist = bond.history || [];
+    const box = h('div', { class: 'sub' }, h('h4', {}, 'History', h('button', { class: 'small', onclick: () => {
+      (bond.history ||= []).push({ status: 'active', ...(hist.length ? {} : bond.since ? { from: bond.since } : {}) }); render();
+    } }, '+ Period')));
+    if (!hist.length) box.append(h('div', { class: 'note' }, 'Optional. Add periods to record pauses, breakups, or types that changed over time.'));
+    hist.forEach(p => {
+      const override = Array.isArray(p.types);
+      box.append(h('div', { class: 'row' },
+        field('Status', select(p, 'status', P.ENUMS.status, { blankLabel: 'pick…' })),
+        field('From', date(p, 'from')),
+        field('To', date(p, 'to')),
+        field('Note', text(p, 'note', 'optional')),
+        h('button', { class: 'small danger', onclick: () => { hist.splice(hist.indexOf(p), 1); if (!hist.length) delete bond.history; render(); } }, '×')));
+      box.append(h('label', { class: 'note' }, h('input', { type: 'checkbox', checked: override, onchange: e => {
+        if (e.target.checked) p.types = [...(bond.types || [])]; else delete p.types; render();
+      } }), ' Different types during this period'));
+      if (override) box.append(chips(p, 'types', terms('relationship_types'), { keepEmpty: true }));
+    });
+    return box;
+  }
+  function agreementsEditor(bond) {
+    const list = bond.agreements || [];
+    const box = h('div', { class: 'sub' }, h('h4', {}, 'Agreements', h('button', { class: 'small', onclick: () => { (bond.agreements ||= []).push({ text: '' }); render(); } }, '+ Agreement')));
+    list.forEach(a => box.append(h('div', { class: 'row' },
+      field('Agreement', text(a, 'text', 'e.g. monthly check-in')),
+      field('Since', date(a, 'since')),
+      h('button', { class: 'small danger', onclick: () => { list.splice(list.indexOf(a), 1); if (!list.length) delete bond.agreements; render(); } }, '×'))));
+    return box;
+  }
+
+  // ------------------------------------------------------------ tabs
+  function renderDoc() {
+    doc.meta ||= {};
+    return [h('div', { class: 'card' }, h('h3', {}, 'Network'),
+      h('div', { class: 'grid' },
+        field('Title', text(doc.meta, 'title', 'e.g. Lantern polycule'), 'wide'),
+        field('Description', text(doc.meta, 'description', 'optional'), 'wide'),
+        field('Default style', select(doc.meta, 'style', P.ENUMS.style, { blankLabel: 'not stated', rerender: true })),
+        field('Updated', date(doc.meta, 'updated')),
+        field('Spec version', h('input', { value: doc.polyml, disabled: true }))),
+      h('p', { class: 'note' }, 'The default style applies to everyone without their own. Under relationship anarchy, relationships have no priority and may have no type.'))];
+  }
+
+  function renderPeople() {
+    const out = [h('button', { class: 'primary', onclick: () => { doc.people.push({ id: '', name: '' }); render(); focusLast('input'); } }, '+ Add person')];
+    if (!doc.people.length) out.push(h('div', { class: 'empty' }, 'No people yet. Add everyone who appears in the network.'));
+    doc.people.forEach(p => {
+      const style = P.styleOf(doc, p.id);
+      out.push(h('div', { class: 'card' + (hasProblem(`people[${doc.people.indexOf(p)}]`) ? ' bad' : '') },
+        h('h3', {}, h('span', { class: 'grow' }, p.name || 'New person'), style === P.RA ? h('span', { class: 'pill ra' }, 'relationship anarchy') : null, removeBtn(doc.people, p)),
+        h('div', { class: 'grid' },
+          field('Name', text(p, 'name', 'Display name', { onchange: () => { if (!p.id) { p.id = uniqueId(p.name, doc.people, p); render(); } } })),
+          field('Id', h('input', { value: p.id, placeholder: 'auto from name', onchange: e => renameId('person', p, e.target.value) })),
+          field('Pronouns', text(p, 'pronouns', 'e.g. they/them')),
+          field('Style', select(p, 'style', P.ENUMS.style, { blankLabel: doc.meta?.style ? `default (${doc.meta.style})` : 'not stated', rerender: true })),
+          field('Location', text(p, 'location', 'city or region')),
+          field('Status', select(p, 'status', P.ENUMS.status, { blankLabel: 'active (default)' })),
+          field('Tags', tags(p, 'tags'), 'wide'),
+          field('Notes', h('textarea', { oninput: e => set(p, 'notes', e.target.value) }, p.notes || ''), 'wide'))));
+    });
+    return out;
+  }
+
+  function renderRels() {
+    const out = [h('button', { class: 'primary', disabled: doc.people.length < 2, onclick: () => {
+      doc.relationships.push({ id: '', parties: [{ person: '' }, { person: '' }], types: [] }); render();
+    } }, '+ Add relationship')];
+    if (doc.people.length < 2) out.push(h('div', { class: 'empty' }, 'Add at least two people first.'));
+    else if (!doc.relationships.length) out.push(h('div', { class: 'empty' }, 'No relationships yet. Each one describes one pairing.'));
+    doc.relationships.forEach((r, i) => {
+      const [a, b] = r.parties;
+      const ra = a.person && b.person && P.isAnarchic(doc, r);
+      if (ra && r.priority) delete r.priority;
+      const pick = (party) => select(party, 'person', personOptions(), { blankLabel: 'pick a person…', rerender: true });
+      const autoId = () => { if ((!r.id || r._auto) && a.person && b.person) { r.id = uniqueId(`${a.person}-${b.person}`, doc.relationships, r); r._auto = true; } };
+      autoId();
+      out.push(h('div', { class: 'card' + (hasProblem(`relationships[${i}]`) ? ' bad' : '') },
+        h('h3', {}, h('span', { class: 'grow' }, `${personName(a.person)} & ${personName(b.person)}`), ra ? h('span', { class: 'pill ra' }, 'relationship anarchy') : null, removeBtn(doc.relationships, r)),
+        h('div', { class: 'grid' },
+          field('Person', pick(a)), field('Person', pick(b)),
+          field(`${personName(a.person)}'s title`, text(a, 'title', 'e.g. big sis')), field(`${personName(b.person)}'s title`, text(b, 'title', 'e.g. lil bro')),
+          field(`${personName(a.person)}'s role`, text(a, 'role', 'e.g. dominant')), field(`${personName(b.person)}'s role`, text(b, 'role', 'e.g. submissive')),
+          field(ra ? 'Types (optional under relationship anarchy)' : 'Types', chips(r, 'types', terms('relationship_types'), { keepEmpty: true }), 'wide'),
+          field('Dynamics', chips(r, 'dynamics', terms('dynamics')), 'wide'),
+          field('Status', select(r, 'status', P.ENUMS.status, { blankLabel: 'active (default)' })),
+          field('Since', date(r, 'since')),
+          field(ra ? 'Priority (not used under RA)' : 'Priority', select(r, 'priority', P.ENUMS.priority, { disabled: ra })),
+          field('Distance', select(r, 'distance', P.ENUMS.distance)),
+          field('Closeness', select(r, 'closeness', [[1, '1 · distant'], [2, '2'], [3, '3'], [4, '4'], [5, '5 · closest']], { number: true })),
+          field('Contact', select(r, 'contact', P.ENUMS.contact)),
+          field('Tags', tags(r, 'tags'), 'wide'),
+          field('Notes', h('textarea', { oninput: e => set(r, 'notes', e.target.value) }, r.notes || ''), 'wide')),
+        agreementsEditor(r), historyEditor(r)));
+    });
+    return out;
+  }
+
+  function renderGroups() {
+    const out = [h('button', { class: 'primary', onclick: () => { doc.groups.push({ id: '', name: '', type: 'polycule', members: [] }); render(); } }, '+ Add group')];
+    if (!doc.groups.length) out.push(h('div', { class: 'empty' }, 'Groups are houses, pods, polycules, families, triads… A group can also be a relationship in its own right.'));
+    doc.groups.forEach((g, i) => {
+      g.members ||= [];
+      const bond = Array.isArray(g.types);
+      const members = h('div', { class: 'sub' }, h('h4', {}, 'Members', h('button', { class: 'small', onclick: () => { g.members.push(''); render(); } }, '+ Member')));
+      g.members.forEach((m, j) => {
+        const obj = P.membership(m);
+        const sync = () => { const { person, ...rest } = obj; g.members[j] = Object.keys(rest).length ? obj : person; };
+        const wrap = new Proxy(obj, { set(t, k, v) { t[k] = v; sync(); return true; }, deleteProperty(t, k) { delete t[k]; sync(); return true; } });
+        members.append(h('div', { class: 'row' },
+          field('Person', select(wrap, 'person', personOptions(), { blankLabel: 'pick…' })),
+          field('From', date(wrap, 'from')), field('To', date(wrap, 'to')), field('Role', text(wrap, 'role', 'optional')),
+          h('button', { class: 'small danger', onclick: () => { g.members.splice(j, 1); render(); } }, '×')));
+      });
+      if (g.members.length) members.append(h('div', { class: 'note' }, 'Leave From and To empty for someone who has always been and still is a member.'));
+      const card = h('div', { class: 'card' + (hasProblem(`groups[${i}]`) ? ' bad' : '') },
+        h('h3', {}, h('span', { class: 'grow' }, g.name || 'New group'), bond ? h('span', { class: 'pill' }, 'bond') : null, removeBtn(doc.groups, g)),
+        h('div', { class: 'grid' },
+          field('Name', text(g, 'name', 'e.g. Maple St house', { onchange: () => { if (!g.id) { g.id = uniqueId(g.name, doc.groups, g); render(); } } })),
+          field('Id', h('input', { value: g.id, placeholder: 'auto from name', onchange: e => renameId('group', g, e.target.value) })),
+          field('Type', select(g, 'type', terms('group_types'), { blankLabel: 'pick…' })),
+          field('Inside group', select(g, 'parent', doc.groups.filter(x => x !== g).map(x => [x.id, x.name || x.id]), { blankLabel: 'none' })),
+          field('Status', select(g, 'status', P.ENUMS.status, { blankLabel: 'active (default)' })),
+          field('Tags', tags(g, 'tags'))),
+        members,
+        h('div', { class: 'sub' }, h('label', {}, h('input', { type: 'checkbox', checked: bond, onchange: e => {
+          if (e.target.checked) g.types = []; else ['types', 'dynamics', 'since', 'history', 'agreements'].forEach(k => delete g[k]);
+          render();
+        } }), ' This group relates as one unit (a triad, quad…), not only as pairings')));
+      if (bond) card.append(h('div', { class: 'grid' },
+        field('Types', chips(g, 'types', terms('relationship_types'), { keepEmpty: true }), 'wide'),
+        field('Dynamics', chips(g, 'dynamics', terms('dynamics')), 'wide'),
+        field('Since', date(g, 'since'))), agreementsEditor(g), historyEditor(g));
+      out.push(card);
+    });
+    return out;
+  }
+
+  function renderVocab() {
+    doc.vocab ||= {};
+    const out = [h('p', { class: 'note' }, 'Core terms are always available. Add your own here and they show up as choices everywhere.')];
+    for (const [k, label] of [['relationship_types', 'Relationship types'], ['dynamics', 'Dynamics'], ['group_types', 'Group types']]) {
+      const list = doc.vocab[k] || [];
+      const card = h('div', { class: 'card' }, h('h3', {}, h('span', { class: 'grow' }, label),
+        h('button', { class: 'small', onclick: () => { (doc.vocab[k] ||= []).push({ id: '' }); render(); } }, '+ Term')),
+        h('div', { class: 'note' }, 'Core: ' + P.CORE[k].join(', ')));
+      list.forEach(t => card.append(h('div', { class: 'row' },
+        field('Id', h('input', { value: t.id, placeholder: 'e.g. comet', onchange: e => { t.id = slug(e.target.value); render(); } })),
+        field('Label', text(t, 'label', 'optional')),
+        field('Description', text(t, 'description', 'optional')),
+        field('Colour', h('input', { type: 'color', value: t.color || '#c084fc', oninput: e => set(t, 'color', e.target.value) })),
+        h('button', { class: 'small danger', onclick: () => { list.splice(list.indexOf(t), 1); if (!list.length) delete doc.vocab[k]; render(); } }, '×'))));
+      out.push(card);
+    }
+    return out;
+  }
+
+  // Renaming an id updates every reference to it.
+  function renameId(kind, obj, raw) {
+    const list = kind === 'person' ? doc.people : doc.groups;
+    const old = obj.id, id = uniqueId(raw || obj.name, list, obj);
+    obj.id = id;
+    if (old && old !== id) {
+      if (kind === 'person') {
+        for (const r of doc.relationships) for (const p of r.parties) if (p.person === old) p.person = id;
+        for (const g of doc.groups) g.members = (g.members || []).map(m => typeof m === 'string' ? (m === old ? id : m) : (m.person === old ? { ...m, person: id } : m));
+      } else for (const g of doc.groups) if (g.parent === old) g.parent = id;
+    }
+    render();
+  }
+
+  // ------------------------------------------------------------ output
+  function cleaned() {
+    const out = JSON.parse(JSON.stringify(doc, (k, v) => k === '_auto' ? undefined : v));
+    if (out.meta && !Object.keys(out.meta).length) delete out.meta;
+    if (out.vocab && !Object.keys(out.vocab).length) delete out.vocab;
+    if (!out.groups?.length) delete out.groups;
+    for (const g of out.groups || []) { g.members = (g.members || []).filter(m => m && (typeof m === 'string' || m.person)); if (!g.members.length) delete g.members; }
+    return out;
+  }
+  const hasProblem = prefix => problems.some(p => p.path === prefix || p.path.startsWith(prefix + '.') || p.path.startsWith(prefix + '['));
+
+  function changed() {
+    const out = cleaned();
+    problems = P.validate(out);
+    const st = $('status');
+    st.className = problems.length ? 'bad' : 'ok';
+    st.innerHTML = '';
+    st.append(problems.length ? `${problems.length} thing${problems.length > 1 ? 's' : ''} to fix before this is valid polyML:` : 'Valid polyML ' + out.polyml + '. Ready to download.');
+    if (problems.length) st.append(h('ul', {}, problems.slice(0, 50).map(p => h('li', {}, p.msg))));
+    $('json').textContent = JSON.stringify(out, null, 2);
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(doc)); } catch (e) { /* storage unavailable */ }
+  }
+
+  function render() {
+    $('tabs').innerHTML = '';
+    for (const [id, label] of TABS) {
+      const count = { people: doc.people.length, rels: doc.relationships.length, groups: (doc.groups || []).length }[id];
+      $('tabs').append(h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; render(); } }, label + (count !== undefined ? ` (${count})` : '')));
+    }
+    changed();
+    const panel = $('panel');
+    const y = window.scrollY;
+    panel.innerHTML = '';
+    panel.append(...({ doc: renderDoc, people: renderPeople, rels: renderRels, groups: renderGroups, vocab: renderVocab }[tab])());
+    window.scrollTo(0, y);
+  }
+  function focusLast(sel) { const els = $('panel').querySelectorAll(sel); els[els.length - 1]?.focus(); }
+
+  function open(json) {
+    if (!json || typeof json !== 'object' || !Array.isArray(json.people)) { alertBox('That file is not a polyML document.'); return; }
+    json.groups ||= []; json.relationships ||= []; json.meta ||= {};
+    json.polyml = '0.2';
+    for (const r of json.relationships) if (r.nesting && !r.distance) { r.distance = 'nesting'; delete r.nesting; }
+    doc = json; render();
+  }
+  function alertBox(msg) { const st = $('status'); st.className = 'bad'; st.textContent = msg; }
+
+  // ------------------------------------------------------------ toolbar
+  $('newBtn').onclick = () => { doc = blank(); tab = 'people'; render(); };
+  $('sampleBtn').onclick = () => fetch('sample.polyml.json').then(r => r.json()).then(open).catch(e => alertBox('Could not load sample: ' + e.message));
+  $('fileIn').onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => { try { open(JSON.parse(fr.result)); } catch (err) { alertBox('Could not read JSON: ' + err.message); } };
+    fr.readAsText(f); e.target.value = '';
+  };
+  $('copyBtn').onclick = () => navigator.clipboard?.writeText($('json').textContent).then(() => { $('copyBtn').textContent = 'Copied'; setTimeout(() => $('copyBtn').textContent = 'Copy JSON', 1500); });
+  $('downloadBtn').onclick = () => {
+    const out = cleaned();
+    const name = (slug(out.meta?.title) || 'network') + '.polyml.json';
+    const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2) + '\n'], { type: 'application/json' }));
+    h('a', { href: url, download: name }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  $('viewBtn').onclick = () => {
+    try { sessionStorage.setItem('polyml:handoff', JSON.stringify(cleaned())); } catch (e) { /* storage unavailable */ }
+    window.open('index.html', '_blank');
+  };
+
+  let draft = null;
+  try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { /* no draft */ }
+  if (draft && Array.isArray(draft.people)) doc = draft;
+  render();
+})();
+</script>
+</body>
+</html>
