@@ -4,43 +4,88 @@
   "title": "polyML document",
   "description": "A polyML v0.1 document: people, groups and the relationships between them.",
   "type": "object",
-  "required": ["polyml", "people", "relationships"],
+  "required": [
+    "polyml",
+    "people",
+    "relationships"
+  ],
   "additionalProperties": false,
-  "patternProperties": { "^x-": {} },
+  "patternProperties": {
+    "^x-": {}
+  },
   "properties": {
-    "polyml": { "const": "0.1", "description": "Spec version this document follows." },
-    "meta": { "$ref": "#/$defs/meta" },
-    "vocab": { "$ref": "#/$defs/vocab" },
-    "people": { "type": "array", "items": { "$ref": "#/$defs/person" } },
-    "groups": { "type": "array", "items": { "$ref": "#/$defs/group" }, "default": [] },
-    "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } }
+    "polyml": {
+      "const": "0.1",
+      "description": "Spec version this document follows."
+    },
+    "meta": {
+      "$ref": "#/$defs/meta"
+    },
+    "vocab": {
+      "$ref": "#/$defs/vocab"
+    },
+    "people": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/person"
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/group"
+      },
+      "default": []
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relationship"
+      }
+    }
   },
   "$defs": {
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$",
-      "description": "Stable, document-unique identifier. Never a legal name."
+      "description": "Stable, document-unique identifier."
     },
     "date": {
       "type": "string",
       "pattern": "^\\d{4}(-\\d{2}(-\\d{2})?)?$",
       "description": "ISO 8601 date with optional precision: YYYY, YYYY-MM or YYYY-MM-DD."
     },
-    "visibility": {
-      "enum": ["public", "private", "redacted"],
-      "description": "public: shown everywhere. private: kept in the file, removed by `polyml export --public`. redacted: value withheld; viewers show a placeholder."
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
     },
-    "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-    "status": { "enum": ["active", "paused", "ended", "unknown"] },
+    "status": {
+      "enum": [
+        "active",
+        "paused",
+        "ended",
+        "unknown"
+      ]
+    },
     "meta": {
       "type": "object",
       "additionalProperties": false,
-      "patternProperties": { "^x-": {} },
+      "patternProperties": {
+        "^x-": {}
+      },
       "properties": {
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "updated": { "$ref": "#/$defs/date" },
-        "default_visibility": { "$ref": "#/$defs/visibility", "default": "private" }
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "updated": {
+          "$ref": "#/$defs/date"
+        }
       }
     },
     "vocab": {
@@ -48,108 +93,230 @@
       "description": "Document-local additions to the core vocabularies. Terms here are valid in addition to the core terms.",
       "additionalProperties": false,
       "properties": {
-        "relationship_types": { "type": "array", "items": { "$ref": "#/$defs/term" } },
-        "group_types": { "type": "array", "items": { "$ref": "#/$defs/term" } },
-        "dynamics": { "type": "array", "items": { "$ref": "#/$defs/term" } }
+        "relationship_types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/term"
+          }
+        },
+        "group_types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/term"
+          }
+        },
+        "dynamics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/term"
+          }
+        }
       }
     },
     "term": {
       "type": "object",
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "label": { "type": "string" },
-        "description": { "type": "string" },
-        "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
       }
     },
     "person": {
       "type": "object",
-      "required": ["id", "name"],
+      "required": [
+        "id",
+        "name"
+      ],
       "additionalProperties": false,
-      "patternProperties": { "^x-": {} },
+      "patternProperties": {
+        "^x-": {}
+      },
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "name": { "type": "string", "description": "Display name or pseudonym." },
-        "pronouns": { "type": "string" },
-        "tags": { "$ref": "#/$defs/tags" },
-        "status": { "$ref": "#/$defs/status", "default": "active" },
-        "visibility": { "$ref": "#/$defs/visibility" },
-        "notes": { "type": "string" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name or pseudonym."
+        },
+        "pronouns": {
+          "type": "string"
+        },
+        "tags": {
+          "$ref": "#/$defs/tags"
+        },
+        "status": {
+          "$ref": "#/$defs/status",
+          "default": "active"
+        },
+        "notes": {
+          "type": "string"
+        }
       }
     },
     "group": {
       "type": "object",
-      "required": ["id", "name", "type"],
+      "required": [
+        "id",
+        "name",
+        "type"
+      ],
       "additionalProperties": false,
-      "patternProperties": { "^x-": {} },
+      "patternProperties": {
+        "^x-": {}
+      },
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "name": { "type": "string" },
-        "type": { "type": "string", "description": "Core: house, pod, polycule, family, other; or a vocab.group_types id." },
-        "parent": { "$ref": "#/$defs/id", "description": "Enclosing group id, for nesting (e.g. a house inside a polycule)." },
-        "members": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
-        "status": { "$ref": "#/$defs/status", "default": "active" },
-        "visibility": { "$ref": "#/$defs/visibility" },
-        "tags": { "$ref": "#/$defs/tags" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "description": "Core: house, pod, polycule, family, other; or a vocab.group_types id."
+        },
+        "parent": {
+          "$ref": "#/$defs/id",
+          "description": "Enclosing group id, for nesting (e.g. a house inside a polycule)."
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "status": {
+          "$ref": "#/$defs/status",
+          "default": "active"
+        },
+        "tags": {
+          "$ref": "#/$defs/tags"
+        }
       }
     },
     "party": {
       "type": "object",
-      "required": ["person"],
+      "required": [
+        "person"
+      ],
       "additionalProperties": false,
       "properties": {
-        "person": { "$ref": "#/$defs/id" },
-        "title": { "type": "string", "description": "What this person is called within the relationship." },
-        "role": { "type": "string", "description": "Role in an asymmetric dynamic, e.g. dominant, submissive, caregiver." }
+        "person": {
+          "$ref": "#/$defs/id"
+        },
+        "title": {
+          "type": "string",
+          "description": "What this person is called within the relationship."
+        },
+        "role": {
+          "type": "string",
+          "description": "Role in an asymmetric dynamic, e.g. dominant, submissive, caregiver."
+        }
       }
     },
     "period": {
       "type": "object",
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "additionalProperties": false,
       "properties": {
-        "status": { "$ref": "#/$defs/status" },
-        "from": { "$ref": "#/$defs/date" },
-        "to": { "$ref": "#/$defs/date" },
-        "note": { "type": "string" }
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "from": {
+          "$ref": "#/$defs/date"
+        },
+        "to": {
+          "$ref": "#/$defs/date"
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
     "relationship": {
       "type": "object",
-      "required": ["id", "parties", "types"],
+      "required": [
+        "id",
+        "parties",
+        "types"
+      ],
       "additionalProperties": false,
-      "patternProperties": { "^x-": {} },
+      "patternProperties": {
+        "^x-": {}
+      },
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
         "parties": {
           "type": "array",
-          "items": { "$ref": "#/$defs/party" },
+          "items": {
+            "$ref": "#/$defs/party"
+          },
           "minItems": 2,
           "maxItems": 2,
           "description": "Exactly two people. Model triads and larger units as groups."
         },
         "types": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 1,
           "uniqueItems": true,
           "description": "One or more relationship types; core terms or vocab.relationship_types ids."
         },
         "dynamics": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "uniqueItems": true,
           "description": "Optional power or play dynamics; core terms or vocab.dynamics ids."
         },
-        "nesting": { "type": "boolean", "default": false, "description": "Partners share a home." },
-        "status": { "$ref": "#/$defs/status", "default": "active", "description": "Current status. Should match the last history period when history is given." },
-        "since": { "$ref": "#/$defs/date" },
-        "history": { "type": "array", "items": { "$ref": "#/$defs/period" } },
-        "visibility": { "$ref": "#/$defs/visibility" },
-        "tags": { "$ref": "#/$defs/tags" },
-        "notes": { "type": "string" }
+        "nesting": {
+          "type": "boolean",
+          "default": false,
+          "description": "Partners share a home."
+        },
+        "status": {
+          "$ref": "#/$defs/status",
+          "default": "active",
+          "description": "Current status. Should match the last history period when history is given."
+        },
+        "since": {
+          "$ref": "#/$defs/date"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/period"
+          }
+        },
+        "tags": {
+          "$ref": "#/$defs/tags"
+        },
+        "notes": {
+          "type": "string"
+        }
       }
     }
   }
