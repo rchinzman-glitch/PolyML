@@ -6,7 +6,7 @@ Machine-readable schema: [`polyml.schema.json`](polyml.schema.json). Example: [`
 
 ## 1. Design goals
 
-1. **Human-editable.** JSON or YAML, short ids, sensible defaults.
+1. **Human-editable.** JSON, short ids, sensible defaults.
 2. **Open vocabulary.** Relationship types are not a fixed list; documents can add their own terms.
 3. **Time-aware.** Relationships change; history is first-class so tools can show the network at any date.
 4. **Graph-native.** People are nodes, relationships are edges, groups are clusters. Everything maps directly onto a graph.
@@ -22,7 +22,7 @@ Machine-readable schema: [`polyml.schema.json`](polyml.schema.json). Example: [`
 | `groups` | no | List of groups (§4). |
 | `relationships` | yes | List of relationships (§5). |
 
-Files use the extension `.polyml.json` or `.polyml.yaml`. YAML must map 1:1 onto the JSON model.
+Files are JSON and use the extension `.polyml.json`.
 
 ### Ids
 

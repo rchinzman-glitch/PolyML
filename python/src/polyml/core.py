@@ -23,13 +23,8 @@ def _schema() -> dict:
 
 
 def load(path: str | Path) -> Doc:
-    """Read a .polyml.json or .polyml.yaml file."""
-    path = Path(path)
-    text = path.read_text("utf-8")
-    if path.suffix in {".yaml", ".yml"}:
-        import yaml  # optional dependency
-        return yaml.safe_load(text)
-    return json.loads(text)
+    """Read a .polyml.json file."""
+    return json.loads(Path(path).read_text("utf-8"))
 
 
 def _date_key(d: str | None, default: str) -> str:
