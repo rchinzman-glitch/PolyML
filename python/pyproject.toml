@@ -7,7 +7,7 @@ name = "polyml"
 version = "0.1.0.dev0"
 description = "Reference library and CLI for the polyML relationship-network format"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = ["jsonschema>=4.18"]
 
 [project.optional-dependencies]
