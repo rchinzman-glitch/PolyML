@@ -1,8 +1,9 @@
 {
-  "polyml": "0.1",
+  "polyml": "0.2",
   "meta": {
     "title": "Sample network (fictional)",
-    "updated": "2026-11-17"
+    "updated": "2026-11-17",
+    "style": "non-hierarchical"
   },
   "vocab": {
     "relationship_types": [
@@ -15,53 +16,19 @@
     ]
   },
   "people": [
-    {
-      "id": "ash",
-      "name": "Ash",
-      "pronouns": "they/them",
-      "tags": [
-        "organizer"
-      ]
-    },
-    {
-      "id": "bea",
-      "name": "Bea",
-      "pronouns": "she/her"
-    },
-    {
-      "id": "cal",
-      "name": "Cal",
-      "pronouns": "he/him"
-    },
-    {
-      "id": "dee",
-      "name": "Dee",
-      "pronouns": "she/they"
-    },
-    {
-      "id": "eli",
-      "name": "Eli",
-      "pronouns": "he/they"
-    },
-    {
-      "id": "fox",
-      "name": "Fox",
-      "pronouns": "they/them",
-      "status": "unknown"
-    }
+    { "id": "ash", "name": "Ash", "pronouns": "they/them", "location": "Portland", "tags": ["organizer"] },
+    { "id": "bea", "name": "Bea", "pronouns": "she/her", "location": "Portland" },
+    { "id": "cal", "name": "Cal", "pronouns": "he/him", "location": "Portland" },
+    { "id": "dee", "name": "Dee", "pronouns": "she/they", "location": "Seattle" },
+    { "id": "eli", "name": "Eli", "pronouns": "he/they", "location": "Denver", "style": "relationship-anarchy" },
+    { "id": "fox", "name": "Fox", "pronouns": "they/them", "status": "unknown" }
   ],
   "groups": [
     {
       "id": "lantern",
       "name": "Lantern polycule",
       "type": "polycule",
-      "members": [
-        "ash",
-        "bea",
-        "cal",
-        "dee",
-        "eli"
-      ]
+      "members": ["ash", "bea", "cal", "dee", "eli"]
     },
     {
       "id": "maple-house",
@@ -69,124 +36,91 @@
       "type": "house",
       "parent": "lantern",
       "members": [
-        "ash",
-        "bea",
-        "cal"
+        { "person": "ash", "from": "2019-06" },
+        { "person": "bea", "from": "2019-06" },
+        { "person": "cal", "from": "2020", "to": "2023-08" }
       ]
+    },
+    {
+      "id": "spark",
+      "name": "Spark triad",
+      "type": "triad",
+      "parent": "lantern",
+      "members": ["bea", "dee", "eli"],
+      "types": ["romantic"],
+      "since": "2024-02",
+      "agreements": [{ "text": "Monthly triad check-in, rotating host.", "since": "2024-02" }]
     }
   ],
   "relationships": [
     {
       "id": "ash-bea",
-      "parties": [
-        {
-          "person": "ash"
-        },
-        {
-          "person": "bea"
-        }
-      ],
-      "types": [
-        "romantic",
-        "sexual"
-      ],
-      "nesting": true,
+      "parties": [{ "person": "ash" }, { "person": "bea" }],
+      "types": ["romantic", "sexual"],
+      "priority": "anchor",
+      "distance": "nesting",
+      "closeness": 5,
+      "contact": "daily",
       "since": "2019-06",
       "history": [
-        {
-          "status": "active",
-          "from": "2019-06",
-          "to": "2021-02"
-        },
-        {
-          "status": "paused",
-          "from": "2021-02",
-          "to": "2021-09",
-          "note": "long-distance year"
-        },
-        {
-          "status": "active",
-          "from": "2021-09"
-        }
+        { "status": "active", "from": "2019-06", "to": "2021-02" },
+        { "status": "paused", "from": "2021-02", "to": "2021-09", "note": "long-distance year" },
+        { "status": "active", "from": "2021-09" }
       ]
     },
     {
       "id": "ash-cal",
-      "parties": [
-        {
-          "person": "ash",
-          "title": "big sib"
-        },
-        {
-          "person": "cal",
-          "title": "lil bro"
-        }
-      ],
-      "types": [
-        "platonic",
-        "chosen-family"
-      ],
-      "nesting": true,
+      "parties": [{ "person": "ash", "title": "big sib" }, { "person": "cal", "title": "lil bro" }],
+      "types": ["platonic", "chosen-family"],
+      "distance": "local",
+      "closeness": 4,
+      "contact": "weekly",
       "since": "2020"
     },
     {
       "id": "bea-dee",
-      "parties": [
-        {
-          "person": "bea",
-          "role": "dominant"
-        },
-        {
-          "person": "dee",
-          "role": "submissive"
-        }
+      "parties": [{ "person": "bea", "role": "dominant" }, { "person": "dee", "role": "submissive" }],
+      "types": ["romantic"],
+      "dynamics": ["d-s"],
+      "distance": "long-distance",
+      "closeness": 4,
+      "contact": "weekly",
+      "since": "2022-03-14",
+      "history": [
+        { "status": "active", "from": "2022-03-14", "to": "2023-01", "types": ["friend"], "dynamics": [] },
+        { "status": "active", "from": "2023-01" }
       ],
-      "types": [
-        "romantic"
-      ],
-      "dynamics": [
-        "d-s"
-      ],
-      "since": "2022-03-14"
+      "agreements": [{ "text": "Video call every Sunday." }]
     },
     {
       "id": "dee-eli",
-      "parties": [
-        {
-          "person": "dee"
-        },
-        {
-          "person": "eli"
-        }
-      ],
-      "types": [
-        "comet"
-      ]
+      "parties": [{ "person": "dee" }, { "person": "eli" }],
+      "types": [],
+      "distance": "long-distance",
+      "closeness": 3,
+      "contact": "rarely",
+      "since": "2021"
+    },
+    {
+      "id": "bea-eli",
+      "parties": [{ "person": "bea" }, { "person": "eli" }],
+      "types": ["comet"],
+      "distance": "long-distance",
+      "closeness": 3,
+      "contact": "monthly",
+      "since": "2024-02"
     },
     {
       "id": "cal-fox",
-      "parties": [
-        {
-          "person": "cal"
-        },
-        {
-          "person": "fox"
-        }
-      ],
-      "types": [
-        "sexual"
-      ],
-      "status": "ended",
+      "parties": [{ "person": "cal" }, { "person": "fox" }],
+      "types": ["friend"],
+      "distance": "local",
+      "closeness": 2,
+      "contact": "monthly",
+      "since": "2018",
       "history": [
-        {
-          "status": "active",
-          "from": "2018",
-          "to": "2020-01"
-        },
-        {
-          "status": "ended",
-          "from": "2020-01"
-        }
+        { "status": "active", "from": "2018", "to": "2020-01", "types": ["sexual"] },
+        { "status": "active", "from": "2020-01", "note": "stayed friends after the breakup" }
       ]
     }
   ]

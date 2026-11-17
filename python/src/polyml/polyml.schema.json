@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://polyml.dev/schema/0.1/polyml.schema.json",
+  "$id": "https://rchinzman-glitch.github.io/polyml/spec/polyml.schema.json",
   "title": "polyML document",
-  "description": "A polyML v0.1 document: people, groups and the relationships between them.",
+  "description": "A polyML v0.2 document: people, groups and the relationships between them. v0.1 documents are also valid.",
   "type": "object",
   "required": [
     "polyml",
@@ -15,7 +15,10 @@
   },
   "properties": {
     "polyml": {
-      "const": "0.1",
+      "enum": [
+        "0.1",
+        "0.2"
+      ],
       "description": "Spec version this document follows."
     },
     "meta": {
@@ -62,6 +65,13 @@
       },
       "uniqueItems": true
     },
+    "terms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
     "status": {
       "enum": [
         "active",
@@ -69,6 +79,42 @@
         "ended",
         "unknown"
       ]
+    },
+    "style": {
+      "enum": [
+        "hierarchical",
+        "non-hierarchical",
+        "relationship-anarchy"
+      ],
+      "description": "How a person or network approaches relationship structure. relationship-anarchy has its own rules (spec \u00a77)."
+    },
+    "priority": {
+      "enum": [
+        "anchor",
+        "primary",
+        "secondary",
+        "none"
+      ]
+    },
+    "distance": {
+      "enum": [
+        "nesting",
+        "local",
+        "long-distance"
+      ]
+    },
+    "contact": {
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly",
+        "rarely"
+      ]
+    },
+    "closeness": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
     },
     "meta": {
       "type": "object",
@@ -85,13 +131,17 @@
         },
         "updated": {
           "$ref": "#/$defs/date"
+        },
+        "style": {
+          "$ref": "#/$defs/style",
+          "description": "Default style for everyone in the document; a person's own style overrides it."
         }
       }
     },
     "vocab": {
       "type": "object",
-      "description": "Document-local additions to the core vocabularies. Terms here are valid in addition to the core terms.",
       "additionalProperties": false,
+      "description": "Document-local additions to the core vocabularies.",
       "properties": {
         "relationship_types": {
           "type": "array",
@@ -135,6 +185,56 @@
         }
       }
     },
+    "agreement": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "since": {
+          "$ref": "#/$defs/date"
+        },
+        "tags": {
+          "$ref": "#/$defs/tags"
+        }
+      }
+    },
+    "period": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "from": {
+          "$ref": "#/$defs/date"
+        },
+        "to": {
+          "$ref": "#/$defs/date"
+        },
+        "note": {
+          "type": "string"
+        },
+        "types": {
+          "$ref": "#/$defs/terms",
+          "description": "Types during this period. Omitted: the bond's current types."
+        },
+        "dynamics": {
+          "$ref": "#/$defs/terms",
+          "description": "Dynamics during this period. Omitted: the bond's current dynamics."
+        }
+      }
+    },
     "person": {
       "type": "object",
       "required": [
@@ -151,10 +251,18 @@
         },
         "name": {
           "type": "string",
-          "description": "Display name or pseudonym."
+          "description": "Display name."
         },
         "pronouns": {
           "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/style",
+          "description": "Overrides meta.style for this person."
+        },
+        "location": {
+          "type": "string",
+          "description": "Coarse location, such as a city or region."
         },
         "tags": {
           "$ref": "#/$defs/tags"
@@ -167,6 +275,35 @@
           "type": "string"
         }
       }
+    },
+    "membership": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "object",
+          "required": [
+            "person"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "person": {
+              "$ref": "#/$defs/id"
+            },
+            "from": {
+              "$ref": "#/$defs/date"
+            },
+            "to": {
+              "$ref": "#/$defs/date"
+            },
+            "role": {
+              "type": "string",
+              "description": "Role within the group, such as co-parent."
+            }
+          }
+        }
+      ]
     },
     "group": {
       "type": "object",
@@ -188,18 +325,39 @@
         },
         "type": {
           "type": "string",
-          "description": "Core: house, pod, polycule, family, other; or a vocab.group_types id."
+          "description": "Core: house, pod, polycule, family, triad, quad, other; or a vocab.group_types id."
         },
         "parent": {
           "$ref": "#/$defs/id",
-          "description": "Enclosing group id, for nesting (e.g. a house inside a polycule)."
+          "description": "Enclosing group id."
         },
         "members": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/id"
-          },
-          "uniqueItems": true
+            "$ref": "#/$defs/membership"
+          }
+        },
+        "types": {
+          "$ref": "#/$defs/terms",
+          "description": "Set when the group relates as one unit (spec \u00a74.1)."
+        },
+        "dynamics": {
+          "$ref": "#/$defs/terms"
+        },
+        "since": {
+          "$ref": "#/$defs/date"
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/period"
+          }
+        },
+        "agreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/agreement"
+          }
         },
         "status": {
           "$ref": "#/$defs/status",
@@ -207,6 +365,9 @@
         },
         "tags": {
           "$ref": "#/$defs/tags"
+        },
+        "notes": {
+          "type": "string"
         }
       }
     },
@@ -221,32 +382,9 @@
           "$ref": "#/$defs/id"
         },
         "title": {
-          "type": "string",
-          "description": "What this person is called within the relationship."
+          "type": "string"
         },
         "role": {
-          "type": "string",
-          "description": "Role in an asymmetric dynamic, e.g. dominant, submissive, caregiver."
-        }
-      }
-    },
-    "period": {
-      "type": "object",
-      "required": [
-        "status"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "status": {
-          "$ref": "#/$defs/status"
-        },
-        "from": {
-          "$ref": "#/$defs/date"
-        },
-        "to": {
-          "$ref": "#/$defs/date"
-        },
-        "note": {
           "type": "string"
         }
       }
@@ -273,34 +411,35 @@
           },
           "minItems": 2,
           "maxItems": 2,
-          "description": "Exactly two people. Model triads and larger units as groups."
+          "description": "Exactly two people: one pairing."
         },
         "types": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "uniqueItems": true,
-          "description": "One or more relationship types; core terms or vocab.relationship_types ids."
+          "$ref": "#/$defs/terms",
+          "description": "Current relationship types. May be empty only under relationship anarchy."
         },
         "dynamics": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "uniqueItems": true,
-          "description": "Optional power or play dynamics; core terms or vocab.dynamics ids."
+          "$ref": "#/$defs/terms"
+        },
+        "priority": {
+          "$ref": "#/$defs/priority",
+          "description": "Not allowed under relationship anarchy."
+        },
+        "distance": {
+          "$ref": "#/$defs/distance"
         },
         "nesting": {
           "type": "boolean",
-          "default": false,
-          "description": "Partners share a home."
+          "description": "Deprecated in 0.2: same as distance: nesting."
+        },
+        "closeness": {
+          "$ref": "#/$defs/closeness"
+        },
+        "contact": {
+          "$ref": "#/$defs/contact"
         },
         "status": {
           "$ref": "#/$defs/status",
-          "default": "active",
-          "description": "Current status. Should match the last history period when history is given."
+          "default": "active"
         },
         "since": {
           "$ref": "#/$defs/date"
@@ -309,6 +448,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/period"
+          }
+        },
+        "agreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/agreement"
           }
         },
         "tags": {
