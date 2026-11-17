@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "polyml"
-version = "0.1.0.dev0"
-description = "Reference library and CLI for the polyML relationship-network format"
+version = "0.2.0.dev0"
+description = "Reference library and CLI for the polyML relationship network format"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-or-later"

@@ -22,7 +22,7 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site/spec
-          cp viewer/* _site/
+          cp viewer/*.html viewer/*.js viewer/*.json _site/
           cp -r spec/* _site/spec/
       - uses: actions/configure-pages@v5
         with:
