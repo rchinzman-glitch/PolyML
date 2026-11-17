@@ -45,7 +45,7 @@
       <button id="sampleBtn">Sample</button>
       <button id="fitBtn">Fit</button>
     </div>
-    <p class="note">Files are read in your browser only. Nothing is uploaded. You can also drop a file on the graph.</p>
+    <p class="note">You can also drop a file on the graph.</p>
     <div id="err"></div>
 
     <h2>Search</h2>
@@ -64,7 +64,6 @@
     <h2>Display</h2>
     <label class="chk"><input type="checkbox" id="showMeta"> Show metamours (thin grey lines)</label>
     <label class="chk"><input type="checkbox" id="hideIsolated"> Hide people with no visible links</label>
-    <label class="chk"><input type="checkbox" id="publicOnly"> Preview public export</label>
   </aside>
   <main id="graph"><div id="info"></div><div id="drop">Drop a .polyml.json file</div></main>
 </div>
@@ -101,7 +100,6 @@
   new ResizeObserver(() => Graph.width($('graph').clientWidth).height($('graph').clientHeight)).observe($('graph'));
 
   function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  const vis = (o) => o.visibility || doc.meta?.default_visibility || 'private';
   const dateKey = d => (d + '-01-01').slice(0, 10);
 
   function load(json) {
@@ -182,7 +180,6 @@
     const d = $('useDate').checked ? dates[+$('dateRange').value] : null;
     $('dateLabel').textContent = d ? d : 'Today (current status)';
     $('dateRange').disabled = !$('useDate').checked;
-    const pub = $('publicOnly').checked;
     const q = $('search').value.trim().toLowerCase();
 
     // Colour each person by their most specific (deepest nested) group.
@@ -194,33 +191,26 @@
 
     const nodes = new Map();
     for (const p of doc.people) {
-      const v = vis(p);
-      if (pub && v === 'private') continue;
       const gs = peopleGroups[p.id] || ['(none)'];
       if (!gs.some(g => filters.groups.has(g))) continue;
-      const redacted = v === 'redacted';
-      const label = redacted ? `Person ${p.id.slice(0, 2).toUpperCase()}…` : p.name;
+      const label = p.name;
       const match = !q || [p.id, p.name, ...(p.tags || [])].some(s => String(s).toLowerCase().includes(q));
       nodes.set(p.id, {
-        id: p.id, label, pronouns: redacted ? '' : p.pronouns, person: p, deg: 0, groups: gs,
+        id: p.id, label, pronouns: p.pronouns, person: p, deg: 0, groups: gs,
         color: !match ? '#3a3f4b' : (groupColor[firstGroup[p.id]] || '#cbd5e1')
       });
     }
 
     const links = [];
     for (const r of doc.relationships) {
-      const v = vis(r);
       const [a, b] = r.parties.map(x => x.person);
       if (!nodes.has(a) || !nodes.has(b)) continue;
-      const pv = [v, vis(doc.people.find(p => p.id === a)), vis(doc.people.find(p => p.id === b))];
-      if (pub && pv.includes('private')) continue;
       const st = statusAt(r, d);
       if (!st || !filters.status.has(st)) continue;
       if (!r.types.some(t => filters.types.has(t))) continue;
       const dy = r.dynamics?.length ? r.dynamics : ['(none)'];
       if (!dy.some(x => filters.dyn.has(x))) continue;
-      const redacted = pv.includes('redacted');
-      const titles = redacted ? '' : r.parties.filter(x => x.title || x.role).map(x => `${esc(nodes.get(x.person).label)}: ${esc([x.title, x.role].filter(Boolean).join(', '))}`).join('<br>');
+      const titles = r.parties.filter(x => x.title || x.role).map(x => `${esc(nodes.get(x.person).label)}: ${esc([x.title, x.role].filter(Boolean).join(', '))}`).join('<br>');
       links.push({
         source: a, target: b, rel: r, status: st, nesting: !!r.nesting, dyn: !!r.dynamics?.length,
         color: STATUS_COLOR[st] || colorOf[r.types.find(t => filters.types.has(t))],
@@ -255,13 +245,13 @@
   function focusNode(n) {
     const dist = 90, r = 1 + dist / Math.hypot(n.x, n.y, n.z || 1);
     Graph.cameraPosition({ x: n.x * r, y: n.y * r, z: n.z * r }, n, 800);
-    const p = n.person, redacted = vis(p) === 'redacted';
+    const p = n.person;
     const rels = Graph.graphData().links.filter(l => !l.meta && (l.source.id === n.id || l.target.id === n.id));
     const groups = doc.groups.filter(g => (g.members || []).includes(p.id)).map(g => esc(g.name));
     $('info').innerHTML = `<h3>${esc(n.label)}</h3>
-      ${!redacted && p.pronouns ? `<div class="note">${esc(p.pronouns)}</div>` : ''}
+      ${p.pronouns ? `<div class="note">${esc(p.pronouns)}</div>` : ''}
       ${groups.length ? `<div>Groups: ${groups.join(', ')}</div>` : ''}
-      ${!redacted && p.tags?.length ? `<div class="note">Tags: ${esc(p.tags.join(', '))}</div>` : ''}
+      ${p.tags?.length ? `<div class="note">Tags: ${esc(p.tags.join(', '))}</div>` : ''}
       <ul>${rels.map(l => { const o = l.source.id === n.id ? l.target : l.source; return `<li>${esc(o.label)}: ${esc(l.rel.types.join(', '))} (${esc(l.status)})</li>`; }).join('') || '<li>No visible relationships</li>'}</ul>`;
     $('info').style.display = 'block';
   }
@@ -281,7 +271,7 @@
   $('fileIn').onchange = e => e.target.files[0] && readFile(e.target.files[0]);
   $('sampleBtn').onclick = () => fetch('sample.polyml.json').then(r => r.json()).then(load).catch(e => $('err').textContent = 'Could not load sample: ' + e.message);
   $('fitBtn').onclick = () => Graph.zoomToFit(600, 40);
-  for (const id of ['useDate', 'showMeta', 'hideIsolated', 'publicOnly']) $(id).onchange = refresh;
+  for (const id of ['useDate', 'showMeta', 'hideIsolated']) $(id).onchange = refresh;
   $('dateRange').oninput = refresh;
   $('search').oninput = refresh;
   const g = $('graph');

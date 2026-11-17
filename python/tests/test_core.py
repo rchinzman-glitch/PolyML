@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from polyml import metamours, public_export, snapshot, stats, validate
+from polyml import metamours, snapshot, stats, validate
 from polyml.cli import main
 
 SAMPLE = Path(__file__).resolve().parents[2] / "spec" / "examples" / "sample.polyml.json"
@@ -55,21 +55,7 @@ def test_stats(doc):
     assert s["people"] == 6 and s["active_relationships"] == 4
 
 
-def test_public_export(doc):
-    doc["people"][0]["notes"] = "secret"
-    doc["people"][0]["x-handle"] = "@ash"
-    out = public_export(doc)
-    ids = {p["id"] for p in out["people"]}
-    assert "fox" not in ids  # private person removed
-    assert all(r["id"] != "cal-fox" for r in out["relationships"])
-    eli = next(p for p in out["people"] if p["id"] == "eli")
-    assert eli["name"].startswith("Person ") and "pronouns" not in eli
-    assert "notes" not in out["people"][0] and "x-handle" not in out["people"][0]
-    assert validate(out) == []
-
-
 def test_cli(tmp_path, capsys):
     assert main(["validate", str(SAMPLE)]) == 0
-    dest = tmp_path / "pub.json"
-    assert main(["export", "--public", str(SAMPLE), "-o", str(dest)]) == 0
-    assert main(["validate", str(dest)]) == 0
+    assert main(["stats", str(SAMPLE)]) == 0
+    assert '"people": 6' in capsys.readouterr().out

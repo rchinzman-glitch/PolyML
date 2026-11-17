@@ -1,7 +1,6 @@
 """Load, validate and derive views from polyML v0.1 documents."""
 from __future__ import annotations
 
-import copy
 import json
 from collections import Counter, defaultdict
 from importlib import resources
@@ -149,41 +148,3 @@ def stats(doc: Doc) -> dict[str, Any]:
         "types": dict(Counter(t for r in doc["relationships"] for t in r["types"])),
         "most_connected": degree.most_common(3),
     }
-
-
-def _vis(obj: Doc, default: str) -> str:
-    return obj.get("visibility", default)
-
-
-def public_export(doc: Doc) -> Doc:
-    """Apply spec §7: drop private entities and all notes, mask redacted names and titles."""
-    out = copy.deepcopy(doc)
-    default = (out.get("meta") or {}).get("default_visibility", "private")
-    people = {p["id"]: p for p in out["people"] if _vis(p, default) != "private"}
-    redacted = {pid for pid, p in people.items() if _vis(p, default) == "redacted"}
-    for n, pid in enumerate(sorted(redacted), 1):
-        people[pid]["name"] = f"Person {n}"
-        people[pid].pop("pronouns", None)
-        people[pid].pop("tags", None)
-    rels = []
-    for r in out["relationships"]:
-        ids = [p["person"] for p in r["parties"]]
-        if _vis(r, default) == "private" or not all(i in people for i in ids):
-            continue
-        if _vis(r, default) == "redacted" or any(i in redacted for i in ids):
-            r["visibility"] = "redacted"
-            for p in r["parties"]:
-                p.pop("title", None)
-        rels.append(r)
-    groups = []
-    for g in out.get("groups", []):
-        if _vis(g, default) == "private":
-            continue
-        g["members"] = [m for m in g.get("members", []) if m in people]
-        groups.append(g)
-    for obj in [*people.values(), *rels, *groups]:
-        obj.pop("notes", None)
-        for k in [k for k in obj if k.startswith("x-")]:
-            del obj[k]  # extensions may hold anything; keep them out of public files
-    out["people"], out["relationships"], out["groups"] = list(people.values()), rels, groups
-    return out

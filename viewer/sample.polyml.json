@@ -2,8 +2,7 @@
   "polyml": "0.1",
   "meta": {
     "title": "Sample network (fictional)",
-    "updated": "2026-11-17",
-    "default_visibility": "public"
+    "updated": "2026-11-17"
   },
   "vocab": {
     "relationship_types": [
@@ -42,15 +41,13 @@
     {
       "id": "eli",
       "name": "Eli",
-      "pronouns": "he/they",
-      "visibility": "redacted"
+      "pronouns": "he/they"
     },
     {
       "id": "fox",
       "name": "Fox",
       "pronouns": "they/them",
-      "status": "unknown",
-      "visibility": "private"
+      "status": "unknown"
     }
   ],
   "groups": [
@@ -164,8 +161,7 @@
       ],
       "types": [
         "comet"
-      ],
-      "visibility": "redacted"
+      ]
     },
     {
       "id": "cal-fox",
@@ -191,8 +187,7 @@
           "status": "ended",
           "from": "2020-01"
         }
-      ],
-      "visibility": "private"
+      ]
     }
   ]
 }
