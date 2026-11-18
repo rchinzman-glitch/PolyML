@@ -1,6 +1,7 @@
-"""Load, validate and derive views from polyML documents (v0.1 and v0.2)."""
+"""Load, upgrade, validate and derive views from polyML documents (v0.3; v0.1 and v0.2 are upgraded on read)."""
 from __future__ import annotations
 
+import copy
 import json
 from collections import Counter, defaultdict
 from importlib import resources
@@ -10,11 +11,11 @@ from typing import Any
 
 import jsonschema
 
-SUPPORTED_VERSIONS = ("0.1", "0.2")
+SUPPORTED_VERSIONS = ("0.1", "0.2", "0.3")
+CURRENT_VERSION = "0.3"
 CORE_RELATIONSHIP_TYPES = frozenset({"romantic", "sexual", "platonic", "queerplatonic", "chosen-family",
                                      "co-parent", "play-partner", "friend", "undefined"})
 CORE_GROUP_TYPES = frozenset({"house", "pod", "polycule", "family", "triad", "quad", "other"})
-CORE_DYNAMICS = frozenset({"d-s", "caregiver", "pet-play", "age-play", "switch", "fluctuating"})
 RA = "relationship-anarchy"
 
 Doc = dict[str, Any]
@@ -64,6 +65,60 @@ def distance_of(rel: Doc) -> str | None:
     return rel.get("distance") or ("nesting" if rel.get("nesting") else None)
 
 
+def is_obscured(doc: Doc, rel: Doc) -> bool:
+    """True when camera obscura (spec §8) applies: either party has obscura set."""
+    obscured = {p["id"] for p in doc["people"] if p.get("obscura")}
+    return any(p["person"] in obscured for p in rel["parties"])
+
+
+_SWITCHING = {"switch", "fluctuating"}
+
+
+def upgrade(doc: Doc) -> Doc:
+    """Return a copy of a v0.1/v0.2 document upgraded to v0.3 (spec §11). v0.3 documents come back unchanged.
+
+    `dynamics` move into `tags` (switch/fluctuating also set direction "both"); `closeness` is dropped.
+    """
+    doc = copy.deepcopy(doc)
+    if doc.get("polyml") not in ("0.1", "0.2"):
+        return doc
+    doc["polyml"] = CURRENT_VERSION
+    vocab = doc.get("vocab")
+    if isinstance(vocab, dict):
+        vocab.pop("dynamics", None)
+        if not vocab:
+            del doc["vocab"]
+    for bond in [*doc.get("relationships", []), *doc.get("groups", [])]:
+        if not isinstance(bond, dict):
+            continue
+        dyns = list(bond.pop("dynamics", None) or [])
+        for h in bond.get("history", []) or []:
+            if isinstance(h, dict):
+                dyns += h.pop("dynamics", None) or []
+        bond.pop("closeness", None)
+        if dyns:
+            tags = bond.setdefault("tags", [])
+            for d in dyns:
+                if d not in tags:
+                    tags.append(d)
+            if "parties" in bond and _SWITCHING & set(dyns):
+                bond.setdefault("direction", "both")
+    return doc
+
+
+def obscure(doc: Doc) -> Doc:
+    """Return a copy where every relationship under camera obscura keeps only its id, parties and status."""
+    out = copy.deepcopy(doc)
+    rels = []
+    for r in out["relationships"]:
+        if is_obscured(out, r):
+            r = {"id": r["id"], "parties": [{"person": p["person"]} for p in r["parties"]], "types": [],
+                 **({"status": r["status"]} if "status" in r else {})}
+        rels.append(r)
+    out["relationships"] = rels
+    return out
+
+
 def _period_at(bond: Doc, d: str) -> Doc | None:
     for h in bond.get("history", []):
         if _covers(h.get("from"), h.get("to"), d):
@@ -96,12 +151,13 @@ def types_at(bond: Doc, date: str | None = None) -> list[str]:
     return bond.get("types", [])
 
 
-def dynamics_at(bond: Doc, date: str | None = None) -> list[str]:
+def direction_at(rel: Doc, date: str | None = None) -> str | None:
+    """Direction in force on `date` (a party's person id or "both"), or now; None when there is none."""
     if date is not None:
-        h = _period_at(bond, _date_key(date, ""))
-        if h and "dynamics" in h:
-            return h["dynamics"]
-    return bond.get("dynamics", [])
+        h = _period_at(rel, _date_key(date, ""))
+        if h and "direction" in h:
+            return h["direction"]
+    return rel.get("direction")
 
 
 def members_at(group: Doc, date: str | None = None) -> list[str]:
@@ -118,21 +174,15 @@ def members_at(group: Doc, date: str | None = None) -> list[str]:
 
 # ---------------------------------------------------------------- validation
 
-def _check_bond(errors: list[str], label: str, bond: Doc, terms: set[str], dyns: set[str]) -> None:
+def _check_bond(errors: list[str], label: str, bond: Doc, terms: set[str]) -> None:
     for t in bond.get("types", []):
         if t not in terms:
             errors.append(f"{label}: unknown type {t!r}")
-    for d in bond.get("dynamics", []):
-        if d not in dyns:
-            errors.append(f"{label}: unknown dynamic {d!r}")
     hist = bond.get("history", [])
     for h in hist:
         for t in h.get("types", []):
             if t not in terms:
                 errors.append(f"{label}: unknown type {t!r} in history")
-        for d in h.get("dynamics", []):
-            if d not in dyns:
-                errors.append(f"{label}: unknown dynamic {d!r} in history")
     for prev, nxt in zip(hist, hist[1:]):
         if _date_key(prev.get("to"), _HIGH) > _date_key(nxt.get("from"), _LOW):
             errors.append(f"{label}: history periods overlap or are out of order")
@@ -143,7 +193,11 @@ def _check_bond(errors: list[str], label: str, bond: Doc, terms: set[str], dyns:
 
 
 def validate(doc: Doc) -> list[str]:
-    """Return a list of problems; empty means the document is valid (schema + spec §9 rules)."""
+    """Return a list of problems; empty means the document is valid (schema + spec §10 rules).
+
+    v0.1 and v0.2 documents are upgraded first (see `upgrade`), so problems refer to the upgraded form.
+    """
+    doc = upgrade(doc)
     errors = [f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}"
               for e in jsonschema.Draft202012Validator(_schema()).iter_errors(doc)]
     if errors:
@@ -157,8 +211,7 @@ def validate(doc: Doc) -> list[str]:
             if n > 1:
                 errors.append(f"duplicate {kind} id: {i}")
 
-    for key, core in (("relationship_types", CORE_RELATIONSHIP_TYPES), ("group_types", CORE_GROUP_TYPES),
-                      ("dynamics", CORE_DYNAMICS)):
+    for key, core in (("relationship_types", CORE_RELATIONSHIP_TYPES), ("group_types", CORE_GROUP_TYPES)):
         for t in _vocab(doc, key) & core:
             errors.append(f"vocab.{key}: {t!r} repeats a core term")
 
@@ -166,7 +219,6 @@ def validate(doc: Doc) -> list[str]:
     gids = {g["id"] for g in groups}
     rtypes = CORE_RELATIONSHIP_TYPES | _vocab(doc, "relationship_types")
     gtypes = CORE_GROUP_TYPES | _vocab(doc, "group_types")
-    dyns = CORE_DYNAMICS | _vocab(doc, "dynamics")
 
     for g in groups:
         label = f"group {g['id']}"
@@ -184,7 +236,7 @@ def validate(doc: Doc) -> list[str]:
         for pid, n in seen.items():
             if n > 1:
                 errors.append(f"{label}: {pid} is listed more than once")
-        _check_bond(errors, label, g, rtypes, dyns)
+        _check_bond(errors, label, g, rtypes)
     parent = {g["id"]: g.get("parent") for g in groups}
     for gid in parent:
         visited, cur = set(), gid
@@ -212,11 +264,14 @@ def validate(doc: Doc) -> list[str]:
             ra = is_anarchic(doc, r)
             if ra and "priority" in r:
                 errors.append(f"{label}: priority is not used under relationship anarchy")
-            if not ra and not r["types"]:
-                errors.append(f"{label}: needs at least one type (only relationship anarchy allows none)")
+            if not ra and not r["types"] and not is_obscured(doc, r):
+                errors.append(f"{label}: needs at least one type (only relationship anarchy or camera obscura allows none)")
+        for where, h in (("", r), *((" in history", h) for h in r.get("history", []))):
+            if "direction" in h and h["direction"] not in (a, b, "both"):
+                errors.append(f"{label}: direction{where} must be {a}, {b} or both, not {h['direction']!r}")
         if r.get("nesting") and r.get("distance") not in (None, "nesting"):
             errors.append(f"{label}: nesting is true but distance is {r['distance']!r}")
-        _check_bond(errors, label, r, rtypes, dyns)
+        _check_bond(errors, label, r, rtypes)
 
     ended = {p["id"] for p in people if p.get("status") == "ended"}
     for r in rels:
@@ -253,7 +308,9 @@ def bonded_groups(doc: Doc) -> list[Doc]:
 
 
 def stats(doc: Doc) -> dict[str, Any]:
+    doc = upgrade(doc)
     active = snapshot(doc)
+    open_rels = [r for r in doc["relationships"] if not is_obscured(doc, r)]
     degree = Counter(p["person"] for r in active for p in r["parties"])
     return {
         "people": len(doc["people"]),
@@ -262,7 +319,9 @@ def stats(doc: Doc) -> dict[str, Any]:
         "relationships": len(doc["relationships"]),
         "active_relationships": len(active),
         "metamour_pairs": len(metamours(doc, active)),
-        "types": dict(Counter(t for r in doc["relationships"] for t in r["types"])),
-        "distance": dict(Counter(distance_of(r) or "unspecified" for r in doc["relationships"])),
+        "obscured_relationships": sum(is_obscured(doc, r) for r in doc["relationships"]),
+        # Obscured relationships never count towards type or distance figures (spec §8).
+        "types": dict(Counter(t for r in open_rels for t in r["types"])),
+        "distance": dict(Counter(distance_of(r) or "unspecified" for r in open_rels)),
         "most_connected": degree.most_common(3),
     }

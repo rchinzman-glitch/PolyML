@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://rchinzman-glitch.github.io/PolyML/spec/polyml.schema.json",
   "title": "polyML document",
-  "description": "A polyML v0.2 document: people, groups and the relationships between them. v0.1 documents are also valid.",
+  "description": "A polyML v0.3 document: people, groups and the relationships between them. Tools upgrade v0.1 and v0.2 documents before validating them.",
   "type": "object",
   "required": [
     "polyml",
@@ -15,10 +15,7 @@
   },
   "properties": {
     "polyml": {
-      "enum": [
-        "0.1",
-        "0.2"
-      ],
+      "const": "0.3",
       "description": "Spec version this document follows."
     },
     "meta": {
@@ -86,7 +83,7 @@
         "non-hierarchical",
         "relationship-anarchy"
       ],
-      "description": "How a person or network approaches relationship structure. relationship-anarchy has its own rules (spec \u00a77)."
+      "description": "How a person or network approaches relationship structure. relationship-anarchy has its own rules (spec §7)."
     },
     "priority": {
       "enum": [
@@ -111,10 +108,9 @@
         "rarely"
       ]
     },
-    "closeness": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 5
+    "direction": {
+      "$ref": "#/$defs/id",
+      "description": "Which way a dynamic runs: the person id of the party it runs from, or 'both' when it switches (spec §5.2)."
     },
     "meta": {
       "type": "object",
@@ -150,12 +146,6 @@
           }
         },
         "group_types": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/term"
-          }
-        },
-        "dynamics": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/term"
@@ -229,9 +219,9 @@
           "$ref": "#/$defs/terms",
           "description": "Types during this period. Omitted: the bond's current types."
         },
-        "dynamics": {
-          "$ref": "#/$defs/terms",
-          "description": "Dynamics during this period. Omitted: the bond's current dynamics."
+        "direction": {
+          "$ref": "#/$defs/direction",
+          "description": "Direction during this period. Omitted: the relationship's current direction."
         }
       }
     },
@@ -273,6 +263,10 @@
         },
         "notes": {
           "type": "string"
+        },
+        "obscura": {
+          "type": "boolean",
+          "description": "Camera obscura (spec §8): this person's links show, but nothing about them."
         }
       }
     },
@@ -339,10 +333,7 @@
         },
         "types": {
           "$ref": "#/$defs/terms",
-          "description": "Set when the group relates as one unit (spec \u00a74.1)."
-        },
-        "dynamics": {
-          "$ref": "#/$defs/terms"
+          "description": "Set when the group relates as one unit (spec §4.1)."
         },
         "since": {
           "$ref": "#/$defs/date"
@@ -385,7 +376,8 @@
           "type": "string"
         },
         "role": {
-          "type": "string"
+          "type": "string",
+          "description": "Free text for this person's side of a dynamic, such as owner or puppy."
         }
       }
     },
@@ -415,10 +407,10 @@
         },
         "types": {
           "$ref": "#/$defs/terms",
-          "description": "Current relationship types. May be empty only under relationship anarchy."
+          "description": "Current relationship types. May be empty only under relationship anarchy or camera obscura."
         },
-        "dynamics": {
-          "$ref": "#/$defs/terms"
+        "direction": {
+          "$ref": "#/$defs/direction"
         },
         "priority": {
           "$ref": "#/$defs/priority",
@@ -430,9 +422,6 @@
         "nesting": {
           "type": "boolean",
           "description": "Deprecated in 0.2: same as distance: nesting."
-        },
-        "closeness": {
-          "$ref": "#/$defs/closeness"
         },
         "contact": {
           "$ref": "#/$defs/contact"
@@ -457,7 +446,8 @@
           }
         },
         "tags": {
-          "$ref": "#/$defs/tags"
+          "$ref": "#/$defs/tags",
+          "description": "Free-form labels, including kinds of dynamic such as d-s or pet-play."
         },
         "notes": {
           "type": "string"

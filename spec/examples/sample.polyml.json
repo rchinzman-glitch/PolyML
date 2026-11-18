@@ -1,5 +1,5 @@
 {
-  "polyml": "0.2",
+  "polyml": "0.3",
   "meta": {
     "title": "Sample network (fictional)",
     "updated": "2026-11-17",
@@ -21,7 +21,8 @@
     { "id": "cal", "name": "Cal", "pronouns": "he/him", "location": "Portland" },
     { "id": "dee", "name": "Dee", "pronouns": "she/they", "location": "Seattle" },
     { "id": "eli", "name": "Eli", "pronouns": "he/they", "location": "Denver", "style": "relationship-anarchy" },
-    { "id": "fox", "name": "Fox", "pronouns": "they/them", "status": "unknown" }
+    { "id": "fox", "name": "Fox", "pronouns": "they/them", "status": "unknown" },
+    { "id": "gus", "name": "Gus", "pronouns": "he/him", "location": "Seattle", "obscura": true }
   ],
   "groups": [
     {
@@ -59,7 +60,6 @@
       "types": ["romantic", "sexual"],
       "priority": "anchor",
       "distance": "nesting",
-      "closeness": 5,
       "contact": "daily",
       "since": "2019-06",
       "history": [
@@ -73,7 +73,6 @@
       "parties": [{ "person": "ash", "title": "big sib" }, { "person": "cal", "title": "lil bro" }],
       "types": ["platonic", "chosen-family"],
       "distance": "local",
-      "closeness": 4,
       "contact": "weekly",
       "since": "2020"
     },
@@ -81,13 +80,13 @@
       "id": "bea-dee",
       "parties": [{ "person": "bea", "role": "dominant" }, { "person": "dee", "role": "submissive" }],
       "types": ["romantic"],
-      "dynamics": ["d-s"],
+      "direction": "bea",
+      "tags": ["d-s"],
       "distance": "long-distance",
-      "closeness": 4,
       "contact": "weekly",
       "since": "2022-03-14",
       "history": [
-        { "status": "active", "from": "2022-03-14", "to": "2023-01", "types": ["friend"], "dynamics": [] },
+        { "status": "active", "from": "2022-03-14", "to": "2023-01", "types": ["friend"] },
         { "status": "active", "from": "2023-01" }
       ],
       "agreements": [{ "text": "Video call every Sunday." }]
@@ -97,7 +96,6 @@
       "parties": [{ "person": "dee" }, { "person": "eli" }],
       "types": [],
       "distance": "long-distance",
-      "closeness": 3,
       "contact": "rarely",
       "since": "2021"
     },
@@ -106,7 +104,6 @@
       "parties": [{ "person": "bea" }, { "person": "eli" }],
       "types": ["comet"],
       "distance": "long-distance",
-      "closeness": 3,
       "contact": "monthly",
       "since": "2024-02"
     },
@@ -115,13 +112,20 @@
       "parties": [{ "person": "cal" }, { "person": "fox" }],
       "types": ["friend"],
       "distance": "local",
-      "closeness": 2,
       "contact": "monthly",
       "since": "2018",
       "history": [
         { "status": "active", "from": "2018", "to": "2020-01", "types": ["sexual"] },
         { "status": "active", "from": "2020-01", "note": "stayed friends after the breakup" }
       ]
+    },
+    {
+      "id": "dee-gus",
+      "parties": [{ "person": "dee" }, { "person": "gus" }],
+      "types": ["romantic"],
+      "distance": "local",
+      "contact": "weekly",
+      "since": "2025"
     }
   ]
 }

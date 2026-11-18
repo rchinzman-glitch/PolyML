@@ -1,4 +1,4 @@
-# polyML specification, v0.2 (draft)
+# polyML specification, v0.3 (draft)
 
 polyML is a plain-text format for describing a relationship network: the people in it, the groups they form, and the relationships between them. A polyML file is the source of truth; tools (the `polyml` library, the 3D viewer, the builder) read it, validate it, and derive views from it.
 
@@ -16,9 +16,9 @@ Machine-readable schema: [`polyml.schema.json`](polyml.schema.json). Example: [`
 
 | Field | Required | Meaning |
 |---|---|---|
-| `polyml` | yes | Spec version: `"0.2"` (or `"0.1"`, see §10). |
+| `polyml` | yes | Spec version: `"0.3"`. Older files are upgraded on read (§11). |
 | `meta` | no | `title`, `description`, `updated` date, and `style` (§7), the default for everyone in the document. |
-| `vocab` | no | Document-local terms added to the core vocabularies (§6). |
+| `vocab` | no | Document-local relationship and group types added to the core vocabularies (§6). |
 | `people` | yes | List of people (§3). |
 | `groups` | no | List of groups (§4). |
 | `relationships` | yes | List of relationships (§5). |
@@ -49,6 +49,7 @@ Any object that allows it may carry extra fields whose names start with `x-` (e.
 | `tags` | no | Free-form labels. |
 | `status` | no | `active` (default), `paused`, `ended`, `unknown`. |
 | `notes` | no | Free text. |
+| `obscura` | no | `true` turns on camera obscura for this person (§8): their links still show, but nothing about them. |
 
 ## 4. Group
 
@@ -61,11 +62,11 @@ A group is any named set of people: a house, a pod, a polycule, a family, a tria
 | `parent` | no | Id of an enclosing group. Parent chains must not loop. |
 | `members` | no | Each entry is a person id, or `{ person, from?, to?, role? }` for dated membership (someone moving in or out) and roles within the group. |
 | `status`, `tags`, `notes` | no | As for people. |
-| Bond fields | no | `types`, `dynamics`, `since`, `history`, `agreements`: see §4.1. |
+| Bond fields | no | `types`, `since`, `history`, `agreements`: see §4.1. |
 
 ### 4.1 Groups as relationship units
 
-A triad, quad or polycule can relate as one unit, not only as a set of pairings. A group that sets `types` is a **bond** in its own right. It uses the same bond fields as a relationship (`types`, `dynamics`, `since`, `history`, `agreements`), with the same meaning and rules. The pairwise relationships between its members still describe each individual pairing inside it, and none of them is required.
+A triad, quad or polycule can relate as one unit, not only as a set of pairings. A group that sets `types` is a **bond** in its own right. It uses the same bond fields as a relationship (`types`, `since`, `history`, `agreements`), with the same meaning and rules. The pairwise relationships between its members still describe each individual pairing inside it, and none of them is required.
 
 ## 5. Relationship
 
@@ -74,23 +75,22 @@ A relationship describes one pairing: it joins exactly two people (an edge). Lar
 | Field | Required | Meaning |
 |---|---|---|
 | `id` | yes | Stable id. |
-| `parties` | yes | Exactly two `{ person, title?, role? }` objects. `title` is what that person is called in this relationship ("big sis"); `role` is their side of an asymmetric dynamic ("dominant"). |
-| `types` | yes | Current relationship types (§6). Types stack: `["romantic", "sexual"]`. May be empty only under relationship anarchy (§7). |
-| `dynamics` | no | Power or play dynamics (§6). |
+| `parties` | yes | Exactly two `{ person, title?, role? }` objects. `title` is what that person is called in this relationship ("big sis"); `role` is free text for their side of a dynamic ("owner", "puppy"). |
+| `types` | yes | Current relationship types (§6). Types stack: `["romantic", "sexual"]`. May be empty only under relationship anarchy (§7) or camera obscura (§8). |
+| `direction` | no | Which way a power or play dynamic runs (§5.2): a party's person id, the side it runs from, or `both` for a dynamic that switches. |
 | `priority` | no | `anchor`, `primary`, `secondary` or `none`. Not allowed under relationship anarchy. |
 | `distance` | no | `nesting` (share a home), `local` or `long-distance`. |
 | `nesting` | no | Deprecated in 0.2; `true` means `distance: "nesting"`. |
-| `closeness` | no | 1 (distant) to 5 (closest). Tools may use it for layout strength. |
 | `contact` | no | How often the two are in touch: `daily`, `weekly`, `monthly`, `rarely`. |
 | `status` | no | Current status, default `active`. |
 | `since` | no | Start date. Must equal the first history period's `from` when both are given. |
 | `history` | no | Ordered periods (§5.1). |
 | `agreements` | no | List of `{ text, since?, tags? }`. |
-| `tags`, `notes` | no | As for people. |
+| `tags`, `notes` | no | As for people. Kinds of dynamic (`d-s`, `pet-play`, `age-play`…) go in `tags` (§5.2). |
 
 ### 5.1 History
 
-`history` is an ordered list of `{ status, from?, to?, note?, types?, dynamics? }` periods. A period's `types` and `dynamics` give the relationship's types and dynamics during that period; when omitted, the current top-level values apply. This records changes such as a romance that becomes a friendship:
+`history` is an ordered list of `{ status, from?, to?, note?, types?, direction? }` periods. A period's `types` and `direction` give the relationship's types and direction during that period; when omitted, the current top-level values apply. This records changes such as a romance that becomes a friendship:
 
 ```json
 "types": ["friend"],
@@ -102,15 +102,27 @@ A relationship describes one pairing: it joins exactly two people (an edge). Lar
 
 The last period's `status` must equal the top-level `status`.
 
+### 5.2 Direction
+
+`direction` records only which way a dynamic runs. It names the party the dynamic runs from (the dominant, owner or caregiver side), or is `both` when the two switch. Tools draw it as an arrow from that person to the other. What kind of dynamic it is goes in the relationship's `tags`, in whatever words the people use; titles and roles stay on the parties.
+
+```json
+"parties": [{ "person": "rax", "role": "owner" }, { "person": "dp", "title": "puppy" }],
+"types": ["play-partner"],
+"direction": "rax",
+"tags": ["d-s", "pet-play"]
+```
+
 ## 6. Vocabularies
 
-Core terms below are always valid. A document adds terms through `vocab.relationship_types`, `vocab.group_types` and `vocab.dynamics`, each a list of `{ id, label?, description?, color? }`. A vocab term must not repeat a core term. Validators reject a term that is neither core nor declared.
+Core terms below are always valid. A document adds terms through `vocab.relationship_types` and `vocab.group_types`, each a list of `{ id, label?, description?, color? }`. A vocab term must not repeat a core term. Validators reject a term that is neither core nor declared.
 
 - **Relationship types:** `romantic`, `sexual`, `platonic`, `queerplatonic`, `chosen-family`, `co-parent`, `play-partner`, `friend`, `undefined`.
 - **Group types:** `house`, `pod`, `polycule`, `family`, `triad`, `quad`, `other`.
-- **Dynamics:** `d-s`, `caregiver`, `pet-play`, `age-play`, `switch`, `fluctuating`.
 
-v0.0 (the 2016 PowerShell library) mapped as follows: `rel_type` romantic → `romantic`, dominant/submissive → `dynamics: ["d-s"]` with party `role`, playmate → `play-partner`, fluctuating → `dynamics: ["fluctuating"]`, undefined → `undefined`; `power_dynamic_type` pupplay → `pet-play`, ageplay → `age-play`; `group_type` relationship → a group of type `other`.
+Dynamics are not a vocabulary: a relationship has a `direction` (§5.2) and describes the kind of dynamic in `tags`.
+
+v0.0 (the 2016 PowerShell library) mapped as follows: `rel_type` romantic → `romantic`, dominant/submissive → tag `d-s` with party `role` and `direction`, playmate → `play-partner`, fluctuating → `direction: "both"`, undefined → `undefined`; `power_dynamic_type` pupplay → tag `pet-play`, ageplay → tag `age-play`; `group_type` relationship → a group of type `other`.
 
 ## 7. Styles and relationship anarchy
 
@@ -120,37 +132,53 @@ Relationship anarchy is a first-class style with its own rules. They apply to ev
 
 1. `priority` is not allowed.
 2. `types` may be empty, or use only custom vocabulary.
-3. Tools must not rank types (for example romantic above platonic), and must not weight, sort or size edges by type. They may still use `closeness` and `contact`, which describe the people involved rather than a category.
+3. Tools must not rank types (for example romantic above platonic), and must not weight, sort or size edges by type. They may still use `contact` and `distance`, which describe the people involved rather than a category.
 
-## 8. Derived data (not stored)
+## 8. Camera obscura
+
+A person who sets `obscura: true` lets the network show that their relationships exist without showing anything about them. For every relationship where at least one party has `obscura: true`:
+
+1. Tools draw the link while it is active, as a plain link: no type colour, arrow, width or label.
+2. Tools must not show or reveal its `types`, `direction`, `priority`, `distance`, `contact`, titles, roles, `since`, `history`, `agreements`, `tags` or `notes`. That includes indirectly: type and other filters never hide or show it, and derived views (such as a search by type) don't count it.
+3. `types` may be empty, so the file need not hold the details at all.
+
+Camera obscura controls what tools show; it does not encrypt anything. Anyone who opens the raw file can read every field in it. To keep a detail private from people who will get the file, leave it out of the file. The builder can export a copy with obscured details removed.
+
+## 9. Derived data (not stored)
 
 Tools compute these; files must not store them:
 
 - **Metamours:** two people who share a partner but have no relationship of their own.
 - **Degree, components, distance** between people.
-- **Snapshot at date D:** relationships and groups whose status at D is `active`, with the types, dynamics and members in force at D.
+- **Snapshot at date D:** relationships and groups whose status at D is `active`, with the types, direction and members in force at D.
 
-## 9. Validation rules beyond the schema
+## 10. Validation rules beyond the schema
 
 1. Ids are unique per list; a person appears at most once in a group's `members`.
 2. Every referenced person or group id exists.
 3. A relationship's two parties are different people, and no two relationships join the same pair.
 4. Group `parent` chains have no cycles.
-5. Every type, group type and dynamic (including those inside history periods) is core or declared in `vocab`, and no vocab term repeats a core term.
+5. Every type and group type (including those inside history periods) is core or declared in `vocab`, and no vocab term repeats a core term.
 6. History periods are in order and do not overlap; the last period's status equals `status`; `since` equals the first period's `from` when both are set.
 7. A membership's `from` is before its `to`.
-8. Relationship anarchy rules (§7): no `priority`; `types` may be empty only under relationship anarchy.
+8. Relationship anarchy rules (§7): no `priority`. `types` may be empty only under relationship anarchy or camera obscura (§8).
 9. `nesting: true` conflicts with any `distance` other than `nesting`.
 10. A person whose `status` is `ended` has no active relationships.
+11. `direction`, at the top level and in history periods, is one of the relationship's two parties or `both`.
 
-## 10. Versioning
+## 11. Versioning
 
-- The `polyml` field names the spec version a file follows. Tools state which versions they read; the reference tools read `0.1` and `0.2`.
+- The `polyml` field names the spec version a file follows. The reference tools read `0.1`, `0.2` and `0.3`, and upgrade older files to `0.3` when they read them.
 - Before 1.0, any minor version (`0.x`) may change or remove fields when that makes the spec better. Keeping older files valid is a goal, not a guarantee. Each release lists its breaking changes.
 - A deprecated field (such as `nesting`) keeps working for at least one minor version after it is deprecated, where that is practical.
 - The schema's `$id` is <https://rchinzman-glitch.github.io/PolyML/spec/polyml.schema.json>.
 
-## 11. Open questions for v0.3
+### Breaking changes in 0.3
+
+- `dynamics` is removed from relationships, groups, history periods and `vocab`. Upgrading moves each dynamic into the relationship's or group's `tags`; `switch` and `fluctuating` also set `direction: "both"`. Upgrading can't tell which way any other dynamic ran, so set `direction` by hand.
+- `closeness` is removed. `priority` carries the weight of a relationship instead.
+
+## 12. Open questions for v0.4
 
 - Directed edges (one-sided crushes, "interested in")?
 - Person-level poly orientation (kitchen-table, parallel, solo)?

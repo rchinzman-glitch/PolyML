@@ -9,7 +9,7 @@ from .core import load, stats, validate
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="polyml", description="Work with polyML files (v0.1 and v0.2).")
+    ap = argparse.ArgumentParser(prog="polyml", description="Work with polyML files (v0.3; v0.1 and v0.2 are upgraded on read).")
     sub = ap.add_subparsers(dest="cmd", required=True)
     v = sub.add_parser("validate", help="check files against the schema and spec rules")
     v.add_argument("files", nargs="+")
