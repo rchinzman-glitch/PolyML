@@ -58,7 +58,7 @@
 
     <h2>Status</h2><div id="f-status"></div>
     <h2>Relationship types</h2><div id="f-types"></div>
-    <h2>Dynamics</h2><div id="f-dyn"></div>
+    <h2>Direction</h2><div id="f-dir"></div>
     <h2>Distance</h2><div id="f-dist"></div>
     <h2>Priority</h2><div id="f-prio"></div>
     <h2>Groups</h2><div id="f-groups"></div>
@@ -81,7 +81,7 @@
   const NONE = '(none)', UNTYPED = '(untyped)';
 
   let doc = null, colorOf = {}, groupColor = {}, dates = [];
-  const filters = { status: new Set(['active','paused','unknown']), types: new Set(), dyn: new Set(), groups: new Set(), dist: new Set(), prio: new Set() };
+  const filters = { status: new Set(['active','paused','unknown']), types: new Set(), dir: new Set(), groups: new Set(), dist: new Set(), prio: new Set() };
   const $ = id => document.getElementById(id);
 
   const Graph = ForceGraph3D()($('graph'))
@@ -94,21 +94,31 @@
     .linkWidth(l => l.width)
     .linkOpacity(0.7)
     .linkLabel(l => l.label)
-    .linkDirectionalParticles(l => l.dyn ? 2 : 0)
+    .linkDirectionalArrowLength(l => l.arrow ? 5 : 0)
+    .linkDirectionalArrowRelPos(0.75)
+    .linkDirectionalArrowColor(l => l.color)
+    .linkDirectionalParticles(l => l.dir === 'both' ? 3 : 0)
     .linkDirectionalParticleWidth(1.5)
     .onNodeClick(focusNode)
     .onLinkClick(showLink)
     .onBackgroundClick(() => { $('info').style.display = 'none'; });
-  // Link strength follows closeness where it is given (never relationship type: spec §7).
-  Graph.d3Force('link').strength(l => l.closeness ? 0.2 + l.closeness * 0.15 : 0.5);
+  // Link strength and width follow priority where it is given (never relationship type: spec §7).
+  const PRIO_STRENGTH = { anchor: 1, primary: 0.8, secondary: 0.5, none: 0.3 };
+  const PRIO_WIDTH = { anchor: 3, primary: 2.4, secondary: 1.6, none: 1 };
+  Graph.d3Force('link').strength(l => PRIO_STRENGTH[l.priority] ?? 0.5);
 
   new ResizeObserver(() => Graph.width($('graph').clientWidth).height($('graph').clientHeight)).observe($('graph'));
 
   function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   const groupName = id => doc.groups.find(g => g.id === id)?.name || id;
 
+  const DIRS = ['one-way', 'both', NONE];
+  const dirKind = d => d === 'both' ? 'both' : d ? 'one-way' : NONE;
+  const HIDDEN = '#9aa1b2';
+
   function load(json) {
     $('err').textContent = '';
+    if (json && typeof json === 'object') json = P.upgrade(json);
     const problems = P.validate(json);
     const fatal = problems.find(p => /^(polyml|people|relationships)$|parties/.test(p.path) || p.path === '');
     if (fatal) { $('err').textContent = fatal.msg; return; }
@@ -117,27 +127,27 @@
     json.groups = json.groups || [];
     $('doctitle').textContent = json.meta?.title || 'Untitled network';
 
-    const bonds = [...json.relationships, ...json.groups];
+    // Types of obscured relationships never reach the filter list (spec §8).
+    const bonds = [...json.relationships.filter(r => !P.isObscured(json, r)), ...json.groups];
     const vocabTypes = json.vocab?.relationship_types || [];
     const allTypes = bonds.flatMap(b => [...(b.types || []), ...(b.history || []).flatMap(h => h.types || [])]);
     const usedTypes = [...new Set([...P.CORE.relationship_types.filter(t => allTypes.includes(t)), ...vocabTypes.map(v => v.id), ...allTypes])];
-    const hasUntyped = json.relationships.some(r => !r.types.length || (r.history || []).some(h => h.types && !h.types.length));
+    const hasUntyped = json.relationships.filter(r => !P.isObscured(json, r)).some(r => !r.types.length || (r.history || []).some(h => h.types && !h.types.length));
     colorOf = {};
     usedTypes.forEach((t, i) => colorOf[t] = vocabTypes.find(v => v.id === t)?.color || PALETTE[i % PALETTE.length]);
     groupColor = {};
     json.groups.forEach((g, i) => groupColor[g.id] = PALETTE[(i + 3) % PALETTE.length]);
 
-    const dyns = [...new Set(bonds.flatMap(b => [...(b.dynamics || []), ...(b.history || []).flatMap(h => h.dynamics || [])]))];
     const typeItems = [...usedTypes, ...(hasUntyped ? [UNTYPED] : [])];
     filters.types = new Set(typeItems);
-    filters.dyn = new Set([...dyns, NONE]);
+    filters.dir = new Set(DIRS);
     filters.groups = new Set([...json.groups.map(g => g.id), NONE]);
     filters.dist = new Set([...P.ENUMS.distance, NONE]);
     filters.prio = new Set([...P.ENUMS.priority, NONE]);
 
     buildChecks('f-status', P.ENUMS.status, filters.status, s => STATUS_COLOR[s] || '#e6e8ee');
     buildChecks('f-types', typeItems, filters.types, t => colorOf[t] || '#cbd5e1', t => t === UNTYPED ? 'No type (relationship anarchy)' : t);
-    buildChecks('f-dyn', [...dyns, NONE], filters.dyn, () => '#e6e8ee');
+    buildChecks('f-dir', DIRS, filters.dir, () => '#e6e8ee', d => ({ 'one-way': 'One way (arrow)', both: 'Both ways (switch)', [NONE]: 'Not given' })[d]);
     buildChecks('f-dist', [...P.ENUMS.distance, NONE], filters.dist, () => '#e6e8ee', d => d === NONE ? 'Not given' : d);
     buildChecks('f-prio', [...P.ENUMS.priority, NONE], filters.prio, () => '#e6e8ee', d => d === NONE ? 'Not given' : d);
     buildChecks('f-groups', [...json.groups.map(g => g.id), NONE], filters.groups, g => groupColor[g] || '#e6e8ee',
@@ -193,20 +203,31 @@
       const [a, b] = r.parties.map(x => x.person);
       if (!nodes.has(a) || !nodes.has(b)) continue;
       const st = P.statusAt(r, d);
+      // Camera obscura (spec §8): an active link shows as a plain line; no filter but status touches it.
+      if (P.isObscured(doc, r)) {
+        if (st === 'active' && filters.status.has('active'))
+          links.push({ source: a, target: b, rel: r, hidden: true, status: st, types: [], width: 1, color: HIDDEN, label: 'Details hidden (camera obscura)' });
+        continue;
+      }
       if (!st || !filters.status.has(st)) continue;
-      const types = P.typesAt(r, d), dyn = P.dynamicsAt(r, d);
+      const types = P.typesAt(r, d), dir = P.directionAt(r, d);
       if (!(types.length ? types : [UNTYPED]).some(t => filters.types.has(t))) continue;
-      if (!(dyn.length ? dyn : [NONE]).some(x => filters.dyn.has(x))) continue;
+      if (!filters.dir.has(dirKind(dir))) continue;
       const dist = P.distanceOf(r);
       if (!filters.dist.has(dist || NONE) || !filters.prio.has(r.priority || NONE)) continue;
       const ra = P.isAnarchic(doc, r);
       const titles = r.parties.filter(x => x.title || x.role).map(x => `${esc(nodes.get(x.person).label)}: ${esc([x.title, x.role].filter(Boolean).join(', '))}`);
-      const facts = [st, dist, r.priority, r.contact && `${r.contact} contact`, r.closeness && `closeness ${r.closeness}/5`, ra && 'relationship anarchy'].filter(Boolean);
+      const facts = [st, dist, r.priority, r.contact && `${r.contact} contact`, ra && 'relationship anarchy'].filter(Boolean);
+      const name = id => esc(nodes.get(id).label);
+      const dirText = dir === 'both' ? 'switches both ways' : dir ? `${name(dir)} → ${name(dir === a ? b : a)}` : '';
+      const one = dir && dir !== 'both';
       links.push({
-        source: a, target: b, rel: r, status: st, types, dyn: dyn.length > 0, closeness: r.closeness,
-        width: r.closeness ? 0.5 + r.closeness * 0.45 : (dist === 'nesting' ? 2.2 : 1.2),
+        // A one-way link runs from the party the dynamic runs from, so the arrow points away from them.
+        source: one && dir === b ? b : a, target: one && dir === b ? a : b,
+        rel: r, status: st, types, dir, arrow: one, priority: r.priority,
+        width: PRIO_WIDTH[r.priority] ?? (dist === 'nesting' ? 2.2 : 1.2),
         color: STATUS_COLOR[st] || colorOf[types.find(t => filters.types.has(t))] || '#cbd5e1',
-        label: `<b>${esc(types.join(', ') || 'no type')}</b>${dyn.length ? '<br>' + esc(dyn.join(', ')) : ''}<br>${esc(facts.join(' · '))}${titles.length ? '<br>' + titles.join('<br>') : ''}`
+        label: `<b>${esc(types.join(', ') || 'no type')}</b>${dirText ? '<br>' + dirText : ''}${r.tags?.length ? '<br>' + esc(r.tags.join(', ')) : ''}<br>${esc(facts.join(' · '))}${titles.length ? '<br>' + titles.join('<br>') : ''}`
       });
     }
     for (const l of links) { nodes.get(l.source).deg++; nodes.get(l.target).deg++; }
@@ -258,12 +279,13 @@
       <div class="note">${esc([p.pronouns, p.location, style].filter(Boolean).join(' · '))}</div>
       ${groups.length ? `<div>Groups: ${groups.map(g => esc(g.name) + (g.types?.length ? ` (${esc(P.typesAt(g, d).join(', '))})` : '')).join(', ')}</div>` : ''}
       ${p.tags?.length ? `<div class="note">Tags: ${esc(p.tags.join(', '))}</div>` : ''}
-      <ul>${rels.map(l => { const o = l.source.id === n.id ? l.target : l.source; return `<li>${esc(o.label)}: ${esc(l.types.join(', ') || 'no type')} (${esc(l.status)})</li>`; }).join('') || '<li>No visible relationships</li>'}</ul>`;
+      <ul>${rels.map(l => { const o = l.source.id === n.id ? l.target : l.source; return l.hidden ? `<li>${esc(o.label)}: <span class="note">details hidden</span></li>` : `<li>${esc(o.label)}: ${esc(l.types.join(', ') || 'no type')} (${esc(l.status)})</li>`; }).join('') || '<li>No visible relationships</li>'}</ul>`;
     $('info').style.display = 'block';
   }
 
   function showLink(l) {
     if (l.meta) return;
+    if (l.hidden) { $('info').innerHTML = `<h3>${esc(l.source.label)} &amp; ${esc(l.target.label)}</h3><div class="note">Details hidden (camera obscura).</div>`; $('info').style.display = 'block'; return; }
     const b = l.rel || l.bond;
     const title = l.rel ? `${esc(l.source.label)} &amp; ${esc(l.target.label)}` : esc(l.bond.name);
     const agreements = (b.agreements || []).map(a => `<li>${esc(a.text)}${a.since ? ` <span class="note">(since ${esc(a.since)})</span>` : ''}</li>`).join('');

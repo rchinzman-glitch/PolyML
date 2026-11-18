@@ -57,6 +57,7 @@
   #json { flex: 1; min-height: 240px; overflow: auto; margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
   .pill { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; color: var(--muted); }
   .pill.ra { color: #f0abfc; border-color: #6b3a72; }
+  .pill.obs { color: #cbd5e1; border-color: #4b5563; }
 </style>
 </head>
 <body>
@@ -68,6 +69,7 @@
   <span class="spacer"></span>
   <button id="copyBtn">Copy JSON</button>
   <button id="downloadBtn" class="primary">Download .polyml.json</button>
+  <button id="downloadObsBtn" title="Removes everything but the people and status from relationships under camera obscura">Download without obscured details</button>
   <button id="viewBtn">Open in 3D viewer</button>
   <a href="index.html">Viewer</a>
 </header>
@@ -95,7 +97,7 @@
   let problems = [];
 
   function blank() {
-    return { polyml: '0.2', meta: { updated: today() }, people: [], groups: [], relationships: [] };
+    return { polyml: P.CURRENT, meta: { updated: today() }, people: [], groups: [], relationships: [] };
   }
   function today() { return new Date().toISOString().slice(0, 10); }
   const slug = s => (s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
@@ -220,7 +222,8 @@
     doc.people.forEach(p => {
       const style = P.styleOf(doc, p.id);
       out.push(h('div', { class: 'card' + (hasProblem(`people[${doc.people.indexOf(p)}]`) ? ' bad' : '') },
-        h('h3', {}, h('span', { class: 'grow' }, p.name || 'New person'), style === P.RA ? h('span', { class: 'pill ra' }, 'relationship anarchy') : null, removeBtn(doc.people, p)),
+        h('h3', {}, h('span', { class: 'grow' }, p.name || 'New person'), style === P.RA ? h('span', { class: 'pill ra' }, 'relationship anarchy') : null,
+          p.obscura ? h('span', { class: 'pill obs' }, 'camera obscura') : null, removeBtn(doc.people, p)),
         h('div', { class: 'grid' },
           field('Name', text(p, 'name', 'Display name', { onchange: () => { if (!p.id) { p.id = uniqueId(p.name, doc.people, p); render(); } } })),
           field('Id', h('input', { value: p.id, placeholder: 'auto from name', onchange: e => renameId('person', p, e.target.value) })),
@@ -229,7 +232,10 @@
           field('Location', text(p, 'location', 'city or region')),
           field('Status', select(p, 'status', P.ENUMS.status, { blankLabel: 'active (default)' })),
           field('Tags', tags(p, 'tags'), 'wide'),
-          field('Notes', h('textarea', { oninput: e => set(p, 'notes', e.target.value) }, p.notes || ''), 'wide'))));
+          field('Notes', h('textarea', { oninput: e => set(p, 'notes', e.target.value) }, p.notes || ''), 'wide')),
+        h('label', { class: 'note' }, h('input', { type: 'checkbox', checked: !!p.obscura, onchange: e => {
+          if (e.target.checked) p.obscura = true; else delete p.obscura; render();
+        } }), ' Camera obscura: show that my relationships exist, but nothing about them')));
     });
     return out;
   }
@@ -243,25 +249,30 @@
     doc.relationships.forEach((r, i) => {
       const [a, b] = r.parties;
       const ra = a.person && b.person && P.isAnarchic(doc, r);
+      const obs = a.person && b.person && P.isObscured(doc, r);
+      if (r.direction && r.direction !== 'both' && !r.parties.some(x => x.person === r.direction)) delete r.direction;
       if (ra && r.priority) delete r.priority;
       const pick = (party) => select(party, 'person', personOptions(), { blankLabel: 'pick a person…', rerender: true });
       const autoId = () => { if ((!r.id || r._auto) && a.person && b.person) { r.id = uniqueId(`${a.person}-${b.person}`, doc.relationships, r); r._auto = true; } };
       autoId();
       out.push(h('div', { class: 'card' + (hasProblem(`relationships[${i}]`) ? ' bad' : '') },
-        h('h3', {}, h('span', { class: 'grow' }, `${personName(a.person)} & ${personName(b.person)}`), ra ? h('span', { class: 'pill ra' }, 'relationship anarchy') : null, removeBtn(doc.relationships, r)),
+        h('h3', {}, h('span', { class: 'grow' }, `${personName(a.person)} & ${personName(b.person)}`), ra ? h('span', { class: 'pill ra' }, 'relationship anarchy') : null,
+          obs ? h('span', { class: 'pill obs' }, 'camera obscura') : null, removeBtn(doc.relationships, r)),
+        obs ? h('p', { class: 'note' }, 'Tools show this link but nothing about it. Anything you fill in below is still written to the file; leave it empty, or use "Download without obscured details", to keep it out.') : null,
         h('div', { class: 'grid' },
           field('Person', pick(a)), field('Person', pick(b)),
           field(`${personName(a.person)}'s title`, text(a, 'title', 'e.g. big sis')), field(`${personName(b.person)}'s title`, text(b, 'title', 'e.g. lil bro')),
-          field(`${personName(a.person)}'s role`, text(a, 'role', 'e.g. dominant')), field(`${personName(b.person)}'s role`, text(b, 'role', 'e.g. submissive')),
-          field(ra ? 'Types (optional under relationship anarchy)' : 'Types', chips(r, 'types', terms('relationship_types'), { keepEmpty: true }), 'wide'),
-          field('Dynamics', chips(r, 'dynamics', terms('dynamics')), 'wide'),
+          field(`${personName(a.person)}'s role`, text(a, 'role', 'e.g. owner')), field(`${personName(b.person)}'s role`, text(b, 'role', 'e.g. puppy')),
+          field(ra || obs ? `Types (optional under ${ra ? 'relationship anarchy' : 'camera obscura'})` : 'Types', chips(r, 'types', terms('relationship_types'), { keepEmpty: true }), 'wide'),
+          field('Direction of a dynamic', select(r, 'direction', [
+            ...(a.person && b.person ? [[a.person, `${personName(a.person)} → ${personName(b.person)}`], [b.person, `${personName(b.person)} → ${personName(a.person)}`]] : []),
+            ['both', 'Both ways (switch)']], { blankLabel: 'none' })),
           field('Status', select(r, 'status', P.ENUMS.status, { blankLabel: 'active (default)' })),
           field('Since', date(r, 'since')),
           field(ra ? 'Priority (not used under RA)' : 'Priority', select(r, 'priority', P.ENUMS.priority, { disabled: ra })),
           field('Distance', select(r, 'distance', P.ENUMS.distance)),
-          field('Closeness', select(r, 'closeness', [[1, '1 · distant'], [2, '2'], [3, '3'], [4, '4'], [5, '5 · closest']], { number: true })),
           field('Contact', select(r, 'contact', P.ENUMS.contact)),
-          field('Tags', tags(r, 'tags'), 'wide'),
+          field('Tags (kinds of dynamic go here)', tags(r, 'tags', 'e.g. d-s, pet-play'), 'wide'),
           field('Notes', h('textarea', { oninput: e => set(r, 'notes', e.target.value) }, r.notes || ''), 'wide')),
         agreementsEditor(r), historyEditor(r)));
     });
@@ -296,12 +307,11 @@
           field('Tags', tags(g, 'tags'))),
         members,
         h('div', { class: 'sub' }, h('label', {}, h('input', { type: 'checkbox', checked: bond, onchange: e => {
-          if (e.target.checked) g.types = []; else ['types', 'dynamics', 'since', 'history', 'agreements'].forEach(k => delete g[k]);
+          if (e.target.checked) g.types = []; else ['types', 'since', 'history', 'agreements'].forEach(k => delete g[k]);
           render();
         } }), ' This group relates as one unit (a triad, quad…), not only as pairings')));
       if (bond) card.append(h('div', { class: 'grid' },
         field('Types', chips(g, 'types', terms('relationship_types'), { keepEmpty: true }), 'wide'),
-        field('Dynamics', chips(g, 'dynamics', terms('dynamics')), 'wide'),
         field('Since', date(g, 'since'))), agreementsEditor(g), historyEditor(g));
       out.push(card);
     });
@@ -311,7 +321,7 @@
   function renderVocab() {
     doc.vocab ||= {};
     const out = [h('p', { class: 'note' }, 'Core terms are always available. Add your own here and they show up as choices everywhere.')];
-    for (const [k, label] of [['relationship_types', 'Relationship types'], ['dynamics', 'Dynamics'], ['group_types', 'Group types']]) {
+    for (const [k, label] of [['relationship_types', 'Relationship types'], ['group_types', 'Group types']]) {
       const list = doc.vocab[k] || [];
       const card = h('div', { class: 'card' }, h('h3', {}, h('span', { class: 'grow' }, label),
         h('button', { class: 'small', onclick: () => { (doc.vocab[k] ||= []).push({ id: '' }); render(); } }, '+ Term')),
@@ -381,8 +391,9 @@
 
   function open(json) {
     if (!json || typeof json !== 'object' || !Array.isArray(json.people)) { alertBox('That file is not a polyML document.'); return; }
+    json = P.upgrade(json);
     json.groups ||= []; json.relationships ||= []; json.meta ||= {};
-    json.polyml = '0.2';
+    json.polyml = P.CURRENT;
     for (const r of json.relationships) if (r.nesting && !r.distance) { r.distance = 'nesting'; delete r.nesting; }
     doc = json; render();
   }
@@ -398,13 +409,14 @@
     fr.readAsText(f); e.target.value = '';
   };
   $('copyBtn').onclick = () => navigator.clipboard?.writeText($('json').textContent).then(() => { $('copyBtn').textContent = 'Copied'; setTimeout(() => $('copyBtn').textContent = 'Copy JSON', 1500); });
-  $('downloadBtn').onclick = () => {
-    const out = cleaned();
+  $('downloadObsBtn').onclick = () => download(P.obscure(cleaned()));
+  $('downloadBtn').onclick = () => download(cleaned());
+  function download(out) {
     const name = (slug(out.meta?.title) || 'network') + '.polyml.json';
     const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2) + '\n'], { type: 'application/json' }));
     h('a', { href: url, download: name }).click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+  }
   $('viewBtn').onclick = () => {
     try { sessionStorage.setItem('polyml:handoff', JSON.stringify(cleaned())); } catch (e) { /* storage unavailable */ }
     window.open('index.html', '_blank');
@@ -412,7 +424,7 @@
 
   let draft = null;
   try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { /* no draft */ }
-  if (draft && Array.isArray(draft.people)) doc = draft;
+  if (draft && Array.isArray(draft.people)) doc = P.upgrade(draft);
   render();
 })();
 </script>

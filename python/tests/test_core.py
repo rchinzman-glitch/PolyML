@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from polyml import (bonded_groups, distance_of, is_anarchic, members_at, metamours, snapshot, stats, status_at,
-                    types_at, validate)
+from polyml import (bonded_groups, direction_at, distance_of, is_anarchic, is_obscured, members_at, metamours,
+                    obscure, snapshot, stats, status_at, types_at, upgrade, validate)
 from polyml.cli import main
 
 SAMPLE = Path(__file__).resolve().parents[2] / "spec" / "examples" / "sample.polyml.json"
@@ -36,18 +36,48 @@ def test_v01_document_still_valid(doc):
     assert distance_of(v01["relationships"][0]) == "nesting"
 
 
+def test_upgrade_from_v02():
+    v02 = {"polyml": "0.2", "vocab": {"dynamics": [{"id": "brat"}]},
+           "people": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}],
+           "relationships": [{"id": "ab", "parties": [{"person": "a"}, {"person": "b"}], "types": ["romantic"],
+                              "dynamics": ["d-s", "switch"], "closeness": 4, "tags": ["d-s"],
+                              "history": [{"status": "active", "dynamics": ["brat"]}]}]}
+    assert validate(v02) == []
+    up = upgrade(v02)
+    r = up["relationships"][0]
+    assert up["polyml"] == "0.3" and "vocab" not in up
+    assert r["tags"] == ["d-s", "switch", "brat"] and r["direction"] == "both"
+    assert "closeness" not in r and "dynamics" not in r and "dynamics" not in r["history"][0]
+    assert v02["relationships"][0]["closeness"] == 4  # the input is left alone
+
+
+def test_direction(doc):
+    assert direction_at(rel(doc, "bea-dee")) == "bea"
+    assert direction_at(rel(doc, "ash-bea")) is None
+
+
+def test_camera_obscura(doc):
+    assert is_obscured(doc, rel(doc, "dee-gus")) and not is_obscured(doc, rel(doc, "bea-dee"))
+    rel(doc, "dee-gus")["types"] = []  # allowed: obscura need not store details
+    assert validate(doc) == []
+    stripped = rel(obscure(doc), "dee-gus")
+    assert stripped == {"id": "dee-gus", "parties": [{"person": "dee"}, {"person": "gus"}], "types": []}
+    assert rel(obscure(doc), "bea-dee") == rel(doc, "bea-dee")
+
+
 @pytest.mark.parametrize("mutate, expected", [
     (lambda d: d["people"].append(dict(d["people"][0])), "duplicate person id"),
     (lambda d: rel(d, "ash-bea")["parties"][1].update(person="nobody"), "unknown person"),
     (lambda d: rel(d, "ash-bea")["types"].append("made-up"), "unknown type"),
-    (lambda d: rel(d, "bea-dee")["dynamics"].append("nope"), "unknown dynamic"),
+    (lambda d: rel(d, "bea-dee").update(direction="ash"), "direction must be"),
+    (lambda d: rel(d, "cal-fox")["history"][0].update(direction="x"), "direction in history must be"),
     (lambda d: rel(d, "cal-fox")["history"][0]["types"].append("nope"), "in history"),
     (lambda d: group(d, "lantern").update(parent="maple-house"), "cycle"),
     (lambda d: d["relationships"].append({**copy.deepcopy(rel(d, "ash-cal")), "id": "dup"}), "same pair"),
     (lambda d: rel(d, "ash-bea").update(status="ended"), "does not match"),
     (lambda d: rel(d, "ash-bea")["history"].reverse(), "overlap"),
     (lambda d: rel(d, "ash-bea").update(since="2019-01"), "differs from the first history period"),
-    (lambda d: d.update(polyml="9"), "is not one of"),
+    (lambda d: d.update(polyml="9"), "was expected"),
     # relationship anarchy
     (lambda d: rel(d, "dee-eli").update(priority="primary"), "not used under relationship anarchy"),
     (lambda d: rel(d, "ash-cal").update(types=[]), "needs at least one type"),
@@ -59,7 +89,7 @@ def test_v01_document_still_valid(doc):
     (lambda d: group(d, "spark")["types"].append("nope"), "group spark: unknown type"),
     (lambda d: d["vocab"]["relationship_types"].append({"id": "romantic"}), "repeats a core term"),
     (lambda d: d["people"][0].update(status="ended"), "is marked ended"),
-    (lambda d: rel(d, "ash-bea").update(closeness=9), "greater than the maximum"),
+    (lambda d: rel(d, "ash-bea").update(closeness=4), "'closeness' does not match"),
 ])
 def test_invalid(doc, mutate, expected):
     mutate(doc)
@@ -107,11 +137,12 @@ def test_metamours(doc):
 
 def test_stats(doc):
     s = stats(doc)
-    assert s["people"] == 6 and s["active_relationships"] == 6 and s["group_bonds"] == 1
+    assert s["people"] == 7 and s["active_relationships"] == 7 and s["group_bonds"] == 1
     assert s["distance"]["long-distance"] == 3
+    assert s["obscured_relationships"] == 1 and "local" in s["distance"] and s["distance"]["local"] == 2  # dee-gus not counted
 
 
 def test_cli(capsys):
     assert main(["validate", str(SAMPLE)]) == 0
     assert main(["stats", str(SAMPLE)]) == 0
-    assert '"people": 6' in capsys.readouterr().out
+    assert '"people": 7' in capsys.readouterr().out

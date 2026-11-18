@@ -3,11 +3,10 @@
 (function (root) {
   'use strict';
 
-  const VERSIONS = ['0.1', '0.2'];
+  const VERSIONS = ['0.1', '0.2', '0.3'], CURRENT = '0.3';
   const CORE = {
     relationship_types: ['romantic', 'sexual', 'platonic', 'queerplatonic', 'chosen-family', 'co-parent', 'play-partner', 'friend', 'undefined'],
     group_types: ['house', 'pod', 'polycule', 'family', 'triad', 'quad', 'other'],
-    dynamics: ['d-s', 'caregiver', 'pet-play', 'age-play', 'switch', 'fluctuating'],
   };
   const ENUMS = {
     status: ['active', 'paused', 'ended', 'unknown'],
@@ -31,6 +30,38 @@
   }
   const isAnarchic = (doc, r) => r.parties.some(p => styleOf(doc, p.person) === RA);
   const distanceOf = r => r.distance || (r.nesting ? 'nesting' : null);
+  // Camera obscura (spec §8): the link shows, nothing about it does.
+  const isObscured = (doc, r) => r.parties.some(p => doc.people.find(x => x.id === p.person)?.obscura === true);
+
+  // Upgrade a v0.1/v0.2 document to v0.3 (spec §11): dynamics become tags (switch/fluctuating also set
+  // direction "both"), closeness is dropped. Returns a new object; v0.3 documents come back as a copy.
+  function upgrade(doc) {
+    doc = JSON.parse(JSON.stringify(doc));
+    if (!doc || !['0.1', '0.2'].includes(doc.polyml)) return doc;
+    doc.polyml = CURRENT;
+    if (doc.vocab && typeof doc.vocab === 'object') { delete doc.vocab.dynamics; if (!Object.keys(doc.vocab).length) delete doc.vocab; }
+    for (const b of [...(doc.relationships || []), ...(doc.groups || [])]) {
+      if (!b || typeof b !== 'object') continue;
+      const dyns = [...(b.dynamics || [])];
+      for (const h of b.history || []) { if (h && h.dynamics) dyns.push(...h.dynamics); if (h) delete h.dynamics; }
+      delete b.dynamics; delete b.closeness;
+      if (dyns.length) {
+        b.tags = b.tags || [];
+        for (const d of dyns) if (!b.tags.includes(d)) b.tags.push(d);
+        if (b.parties && dyns.some(d => d === 'switch' || d === 'fluctuating') && !b.direction) b.direction = 'both';
+      }
+    }
+    return doc;
+  }
+
+  // A copy where every relationship under camera obscura keeps only its id, parties and status.
+  function obscure(doc) {
+    const out = JSON.parse(JSON.stringify(doc));
+    out.relationships = out.relationships.map(r => isObscured(out, r)
+      ? { id: r.id, parties: r.parties.map(p => ({ person: p.person })), types: [], ...(r.status ? { status: r.status } : {}) }
+      : r);
+    return out;
+  }
 
   function periodAt(bond, d) {
     return (bond.history || []).find(h => covers(h.from, h.to, d)) || null;
@@ -51,9 +82,9 @@
     if (date) { const h = periodAt(bond, dateKey(date, '')); if (h && h.types) return h.types; }
     return bond.types || [];
   }
-  function dynamicsAt(bond, date) {
-    if (date) { const h = periodAt(bond, dateKey(date, '')); if (h && h.dynamics) return h.dynamics; }
-    return bond.dynamics || [];
+  function directionAt(rel, date) {
+    if (date) { const h = periodAt(rel, dateKey(date, '')); if (h && h.direction) return h.direction; }
+    return rel.direction || null;
   }
   function membersAt(group, date) {
     const d = date ? dateKey(date, '') : null;
@@ -74,24 +105,26 @@
     return [...ds].sort();
   }
 
-  // Validation: structural checks (a subset of the JSON Schema) plus spec §9 rules.
-  // Returns a list of {path, msg}. Empty means valid.
+  // Validation: structural checks (a subset of the JSON Schema) plus spec §10 rules.
+  // v0.1/v0.2 documents are upgraded first. Returns a list of {path, msg}. Empty means valid.
   function validate(doc) {
     const errs = [];
     const err = (path, msg) => errs.push({ path, msg });
     const isObj = x => x && typeof x === 'object' && !Array.isArray(x);
     if (!isObj(doc)) { err('', 'The file is not a JSON object'); return errs; }
+    doc = upgrade(doc);
     if (!VERSIONS.includes(doc.polyml)) err('polyml', `Version must be one of ${VERSIONS.join(', ')}`);
     if (!Array.isArray(doc.people)) { err('people', 'people must be a list'); return errs; }
     if (!Array.isArray(doc.relationships)) { err('relationships', 'relationships must be a list'); return errs; }
     const groups = doc.groups || [];
     const vocab = doc.vocab || {};
     const terms = k => new Set([...CORE[k], ...(vocab[k] || []).map(t => t.id)]);
-    const rtypes = terms('relationship_types'), gtypes = terms('group_types'), dyns = terms('dynamics');
+    const rtypes = terms('relationship_types'), gtypes = terms('group_types');
     for (const k of Object.keys(CORE)) for (const t of vocab[k] || []) {
       if (!ID_RE.test(t.id || '')) err(`vocab.${k}`, `Bad term id ${JSON.stringify(t.id)}`);
       if (CORE[k].includes(t.id)) err(`vocab.${k}`, `'${t.id}' repeats a core term`);
     }
+    doc.people.forEach((p, i) => { if (p.obscura !== undefined && typeof p.obscura !== 'boolean') err(`people[${i}].obscura`, 'obscura must be true or false'); });
     if (doc.meta?.style && !ENUMS.style.includes(doc.meta.style)) err('meta.style', `Unknown style '${doc.meta.style}'`);
 
     const checkDate = (path, v) => { if (v !== undefined && !DATE_RE.test(v)) err(path, `'${v}' is not a date (YYYY, YYYY-MM or YYYY-MM-DD)`); };
@@ -115,7 +148,7 @@
 
     function checkBond(path, label, b) {
       for (const t of b.types || []) if (!rtypes.has(t)) err(`${path}.types`, `${label}: unknown type '${t}'`);
-      for (const d of b.dynamics || []) if (!dyns.has(d)) err(`${path}.dynamics`, `${label}: unknown dynamic '${d}'`);
+      for (const k of ['dynamics', 'closeness']) if (k in b) err(`${path}.${k}`, `${label}: ${k} was removed in 0.3`);
       checkEnum(`${path}.status`, 'status', b.status);
       checkDate(`${path}.since`, b.since);
       const hist = b.history || [];
@@ -124,7 +157,6 @@
         if (!h.status) err(`${path}.history[${j}].status`, `${label}: every history period needs a status`);
         checkDate(`${path}.history[${j}].from`, h.from); checkDate(`${path}.history[${j}].to`, h.to);
         for (const t of h.types || []) if (!rtypes.has(t)) err(`${path}.history[${j}].types`, `${label}: unknown type '${t}' in history`);
-        for (const d of h.dynamics || []) if (!dyns.has(d)) err(`${path}.history[${j}].dynamics`, `${label}: unknown dynamic '${d}' in history`);
       });
       for (let j = 1; j < hist.length; j++)
         if (dateKey(hist[j - 1].to, HIGH) > dateKey(hist[j].from, LOW)) err(`${path}.history`, `${label}: history periods overlap or are out of order`);
@@ -169,12 +201,14 @@
       if (pids.has(a) && pids.has(b)) {
         const ra = isAnarchic(doc, r);
         if (ra && r.priority) err(`${path}.priority`, `${label}: priority is not used under relationship anarchy`);
-        if (!ra && !(r.types || []).length) err(`${path}.types`, `${label} needs at least one type (only relationship anarchy allows none)`);
+        if (!ra && !isObscured(doc, r) && !(r.types || []).length) err(`${path}.types`, `${label} needs at least one type (only relationship anarchy or camera obscura allows none)`);
       }
       checkEnum(`${path}.priority`, 'priority', r.priority);
       checkEnum(`${path}.distance`, 'distance', r.distance);
       checkEnum(`${path}.contact`, 'contact', r.contact);
-      if (r.closeness !== undefined && !(Number.isInteger(r.closeness) && r.closeness >= 1 && r.closeness <= 5)) err(`${path}.closeness`, `${label}: closeness must be a whole number from 1 to 5`);
+      [['', r], ...(r.history || []).map((h, j) => [`.history[${j}]`, h])].forEach(([w, h]) => {
+        if (h.direction !== undefined && ![a, b, 'both'].includes(h.direction)) err(`${path}${w}.direction`, `${label}: direction${w ? ' in history' : ''} must be ${a}, ${b} or both, not '${h.direction}'`);
+      });
       if (r.nesting && r.distance && r.distance !== 'nesting') err(`${path}.distance`, `${label}: nesting is true but distance is '${r.distance}'`);
       checkBond(path, label, r);
       if ((r.status || 'active') === 'active') for (const p of [a, b]) if (ended.has(p)) err(`${path}.status`, `${label} is active but '${p}' is marked ended`);
@@ -182,5 +216,5 @@
     return errs;
   }
 
-  root.PolyML = { VERSIONS, CORE, ENUMS, RA, dateKey, membership, styleOf, isAnarchic, distanceOf, statusAt, typesAt, dynamicsAt, membersAt, allDates, validate };
+  root.PolyML = { VERSIONS, CURRENT, CORE, ENUMS, RA, dateKey, membership, styleOf, isAnarchic, isObscured, distanceOf, upgrade, obscure, statusAt, typesAt, directionAt, membersAt, allDates, validate };
 })(typeof window !== 'undefined' ? window : globalThis);

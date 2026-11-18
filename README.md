@@ -4,7 +4,7 @@
 
 polyML is an open format for describing relationship networks: the people in them, the groups they form (houses, pods, polycules, families), and the relationships between them. It also covers how those relationships change over time.
 
-- **Spec:** [`spec/polyml-spec.md`](spec/polyml-spec.md), v0.2 draft (reads v0.1 files too), with a JSON Schema at [`spec/polyml.schema.json`](spec/polyml.schema.json)
+- **Spec:** [`spec/polyml-spec.md`](spec/polyml-spec.md), v0.3 draft (the tools upgrade v0.1 and v0.2 files when they read them), with a JSON Schema at [`spec/polyml.schema.json`](spec/polyml.schema.json)
 - **3D viewer:** [`viewer/`](viewer/), a static web page built on [3d-force-graph](https://github.com/vasturiano/3d-force-graph). It's published to GitHub Pages.
 - **Builder:** [`viewer/builder.html`](viewer/builder.html), a form-based editor that makes a valid `.polyml.json` file. It checks your file as you type, keeps a draft in your browser, and opens the result in the 3D viewer.
 - **Python library and CLI:** [`python/`](python/) provides `polyml validate` and `polyml stats`.
